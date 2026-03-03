@@ -6,7 +6,7 @@ PostAll 集成版本
 用法:
     from postall.generators.xhs_cards import generate_xhs_cards
     generate_xhs_cards(
-        wechat_md_path="/path/to/wechat_content.md",
+        content_md_path="/path/to/article_content.md",
         cover_image_path="/path/to/image.png",
         output_dir="/path/to/xhs-cards/",
         cover_title="标题文字"
@@ -362,12 +362,12 @@ def _create_cover_card(image_path, title):
     
     return img
 
-def generate_xhs_cards(wechat_md_path, cover_image_path, output_dir, cover_title):
+def generate_xhs_cards(content_md_path, cover_image_path, output_dir, cover_title):
     """
     生成小红书卡片
     
     Args:
-        wechat_md_path: Markdown 文章 markdown 文件路径
+        content_md_path: Markdown 文章 markdown 文件路径
         cover_image_path: 封面配图路径
         output_dir: 输出目录
         cover_title: 封面标题文字
@@ -380,7 +380,7 @@ def generate_xhs_cards(wechat_md_path, cover_image_path, output_dir, cover_title
         output_dir.mkdir(parents=True, exist_ok=True)
         
         # 读取Markdown 文章
-        with open(wechat_md_path, 'r', encoding='utf-8') as f:
+        with open(content_md_path, 'r', encoding='utf-8') as f:
             raw_content = f.read()
         
         # 提取正文
@@ -410,9 +410,9 @@ def generate_xhs_cards(wechat_md_path, cover_image_path, output_dir, cover_title
             "error": str(e)
         }
 
-def extract_title_from_wechat(wechat_md_path):
+def extract_title_from_markdown(content_md_path):
     """从Markdown 文章中提取标题"""
-    with open(wechat_md_path, 'r', encoding='utf-8') as f:
+    with open(content_md_path, 'r', encoding='utf-8') as f:
         content = f.read()
     
     # 尝试从 # 标题提取
@@ -430,7 +430,7 @@ def extract_title_from_wechat(wechat_md_path):
 if __name__ == "__main__":
     # 测试
     result = generate_xhs_cards(
-        wechat_md_path="/opt/postall/projects/tar/output/single_topics/knowledge_business/wechat-posts/wechat_content.md",
+        content_md_path="/opt/postall/projects/tar/output/single_topics/knowledge_business/articles/article_content.md",
         cover_image_path="/opt/postall/projects/tar/output/single_topics/knowledge_business/image.png",
         output_dir="/tmp/xhs_test",
         cover_title="把知识变成百万生意的5种模式"
