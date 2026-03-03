@@ -402,6 +402,11 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
+## 📖 Documentation
+
+- **[Platform API Setup Guide](docs/PLATFORM_SETUP.md)** - How to get API credentials for each platform
+- **[平台 API 设置指南](docs/PLATFORM_SETUP_CN.md)** - 如何获取各平台 API 凭证（中文）
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

@@ -402,6 +402,11 @@ black postall/
 4. 推送到分支 (`git push origin feature/AmazingFeature`)
 5. 打开 Pull Request
 
+## 📖 文档
+
+- **[平台 API 设置指南](docs/PLATFORM_SETUP_CN.md)** - 如何获取各平台 API 凭证
+- **[Platform API Setup Guide](docs/PLATFORM_SETUP.md)** - How to get API credentials (English)
+
 ## 📄 许可证
 
 本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
