@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  postall:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: postall
+
+    volumes:
+      - ./projects/example:/app/project:ro
+      - ./projects/example/output:/app/output
+      - ./projects/example/database:/app/database
+      - ./projects/example/logs:/app/logs
+      - ./projects/example/backups:/app/backups
+
+    env_file:
+      - .env
+
+    command: >
+      python -m postall.cli
+      --project /app/project/project.yaml
+      daemon
+
+    restart: unless-stopped
+
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

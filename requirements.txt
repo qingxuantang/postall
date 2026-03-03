@@ -1,0 +1,35 @@
+# PostAll - Automated Social Media Content Publishing System - Dependencies
+
+# CLI Framework
+click>=8.1.0
+rich>=13.0.0
+
+# AI Providers
+anthropic>=0.40.0
+google-genai>=1.0.0  # New SDK (replaces deprecated google-generativeai)
+openai>=1.0.0        # For DALL-E 3 image generation fallback
+httpx>=0.25.0        # HTTP client (used by openai, notifications)
+
+# Image Processing (for Gemini Imagen 3)
+Pillow>=10.0.0
+
+# Configuration
+python-dotenv>=1.0.0
+pyyaml>=6.0.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+
+# Scheduling
+APScheduler>=3.10.0
+
+# Date/Time
+python-dateutil>=2.8.0
+
+# File Operations
+pathlib2>=2.3.0
+
+# Cloud Daemon (v2.0)
+aiohttp>=3.9.0       # Async HTTP for health server
+
+# Social Media Publishing
+tweepy>=4.14.0       # Twitter API v2 client

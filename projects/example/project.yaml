@@ -1,0 +1,169 @@
+# ================================================
+# Example PostAll Project Configuration
+# ================================================
+# This is a template for creating your own project.
+# Copy this file to your project directory and customize.
+
+# Project Metadata
+project_id: example_brand
+project_name: "Example Brand Project"
+version: "1.0.0"
+
+# ================================================
+# BRAND CONFIGURATION
+# ================================================
+brand:
+  name: "Example Brand"
+  tagline: "Your Tagline Here"
+  website: "examplebrand.com"
+  style: "Professional yet approachable, helpful and trustworthy"
+
+  # Brand color palette
+  colors:
+    primary: "#3498DB"      # Main brand color (blue)
+    secondary: "#2ECC71"    # Secondary color (green)
+    accent: "#E74C3C"       # Accent/CTA color (red)
+    background: "#FFFFFF"   # Background color
+    text: "#2C3E50"         # Text color
+
+  # Brand voice guidelines
+  voice:
+    tone: "professional yet friendly"
+    characteristics:
+      - "clear and concise"
+      - "helpful and educational"
+      - "trustworthy and authentic"
+      - "encouraging without being pushy"
+    avoid:
+      - "aggressive sales language"
+      - "overpromising or hype"
+      - "technical jargon"
+      - "competitor bashing"
+      - "clichés and buzzwords"
+
+  # Copyright
+  copyright_year: 2026
+  copyright_text: ""  # Leave empty to auto-generate
+
+# ================================================
+# PRODUCT DEFINITIONS
+# ================================================
+products:
+  main_product:
+    name: "Example Product"
+    type: "SaaS Application"
+    description: |
+      A brief description of your product and its core value proposition.
+      What problem does it solve? Who is it for?
+
+    # Physical attributes (for physical products)
+    physical:
+      format: "Digital"
+
+    # Design attributes
+    design:
+      style: "Modern, clean, minimalist"
+      special_features:
+        - "Feature 1: Description"
+        - "Feature 2: Description"
+        - "Feature 3: Description"
+
+    # Keywords for content and SEO
+    keywords:
+      - "keyword1"
+      - "keyword2"
+      - "keyword3"
+      - "keyword4"
+
+    # Reference images (relative to assets directory)
+    reference_images:
+      - "product_images/main_product.png"
+
+# Set default product
+default_product: main_product
+
+# ================================================
+# CONTENT STRATEGY
+# ================================================
+content_strategy:
+  # Content pillar distribution (must total 100%)
+  pillars:
+    product_education: 35    # Teaching about your product
+    industry_insights: 25    # Industry trends and news
+    tips_productivity: 20    # Tips and how-tos
+    customer_stories: 10     # Success stories and testimonials
+    behind_scenes: 5         # Company culture and process
+    lead_magnet: 5           # Free resources and downloads
+
+  # Content themes to explore
+  themes:
+    - "Getting Started"
+    - "Best Practices"
+    - "Common Mistakes"
+    - "Success Stories"
+    - "Industry Trends"
+
+  # Platform-specific hashtags
+  hashtags:
+    instagram:
+      - "#ExampleBrand"
+      - "#YourIndustry"
+      - "#ProductivityTips"
+    twitter:
+      - "#ExampleBrand"
+      - "#YourIndustry"
+    linkedin:
+      - "#ExampleBrand"
+      - "#Professional"
+      - "#BusinessGrowth"
+    pinterest:
+      - "#ExampleBrand"
+      - "#Inspiration"
+
+  # Optimal posting times per platform
+  posting_times:
+    instagram: ["08:00", "12:00", "17:00"]
+    twitter: ["08:00", "12:00", "15:00", "18:00"]
+    linkedin: ["07:30", "12:00"]
+    pinterest: ["20:00"]
+
+# ================================================
+# PLATFORM SETTINGS
+# ================================================
+# Note: Credentials should be in .env file, not here
+platforms:
+  twitter:
+    enabled: true
+  instagram:
+    enabled: false  # Requires Meta Business setup
+  linkedin:
+    enabled: true
+  pinterest:
+    enabled: false
+  threads:
+    enabled: false
+
+# ================================================
+# PATHS (relative to this config file)
+# ================================================
+output_dir: output
+prompts_dir: prompts
+assets_dir: assets
+
+# ================================================
+# SCHEDULE SETTINGS
+# ================================================
+timezone: "America/Los_Angeles"
+
+generation_schedule:
+  day: "saturday"
+  time: "09:00"
+
+# ================================================
+# AI SETTINGS
+# ================================================
+# Prefer Gemini over Claude (lower cost)
+prefer_gemini: false
+
+# Maximum API calls per day (cost control)
+max_daily_api_calls: 100
