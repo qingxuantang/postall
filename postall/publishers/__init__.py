@@ -7,6 +7,7 @@ Provides integration with various social media platforms:
 - LinkedIn via LinkedIn Posts API
 - Instagram via Instagram Graph API (Meta)
 - Threads via Threads API (Meta)
+- Xiaohongshu via Playwright automation
 """
 import re
 
@@ -29,9 +30,9 @@ def clean_metadata(text: str, platform: str = 'generic') -> str:
         Clean content ready for publishing
     """
     # Remove # Title lines (e.g. "# Twitter Post 1 - Monday Tweet")
-    text = re.sub(r'^#\s+(?:Twitter|Linkedin|Wechat|Instagram|Pinterest|Threads)\s+Post.*$', '', text, flags=re.MULTILINE | re.IGNORECASE)
+    text = re.sub(r'^#\s+(?:Twitter|Linkedin|Instagram|Pinterest|Threads)\s+Post.*$', '', text, flags=re.MULTILINE | re.IGNORECASE)
     # Remove ## headers (title lines like "## Tweet - xxx" or "## LinkedIn Post - xxx")
-    text = re.sub(r'^##\s+(?:(?:Twitter|Linkedin|Wechat|Instagram|Pinterest|Threads)\s+)?(?:Tweet|Post|Article|Pin|Thread)\s*[-–—].*$', '', text, flags=re.MULTILINE | re.IGNORECASE)
+    text = re.sub(r'^##\s+(?:(?:Twitter|Linkedin|Instagram|Pinterest|Threads)\s+)?(?:Tweet|Post|Pin|Thread)\s*[-–—].*$', '', text, flags=re.MULTILINE | re.IGNORECASE)
     # Remove all metadata lines: **Key:** Value
     text = re.sub(r'^\*\*Post Type:\*\*.*$', '', text, flags=re.MULTILINE)
     text = re.sub(r'^\*\*Theme:\*\*.*$', '', text, flags=re.MULTILINE)
@@ -43,9 +44,8 @@ def clean_metadata(text: str, platform: str = 'generic') -> str:
     text = re.sub(r'^\*\*Thread\s*\(\d+\s*tweets?\):\*\*.*$', '', text, flags=re.MULTILINE | re.IGNORECASE)
     # Remove ### Image Prompt and everything after it
     text = re.split(r'###\s*Image Prompt', text, flags=re.IGNORECASE)[0]
-    # Remove ### section headers (but keep for wechat articles)
-    if platform.lower() != 'wechat':
-        text = re.sub(r'^###\s+.*$', '', text, flags=re.MULTILINE)
+    # Remove ### section headers
+    text = re.sub(r'^###\s+.*$', '', text, flags=re.MULTILINE)
     # Remove --- horizontal rules
     text = re.sub(r'^---\s*$', '', text, flags=re.MULTILINE)
     # Clean up excessive blank lines
@@ -66,7 +66,6 @@ from .pinterest_publisher import PinterestPublisher
 from .linkedin_publisher import LinkedInPublisher
 from .instagram_publisher import InstagramPublisher
 from .threads_publisher import ThreadsPublisher
-from .wechat_publisher import WeChatPublisher
 
 __all__ = [
     "TwitterPublisher",
@@ -74,6 +73,5 @@ __all__ = [
     "LinkedInPublisher",
     "InstagramPublisher",
     "ThreadsPublisher",
-    "WeChatPublisher",
     "clean_metadata"
 ]

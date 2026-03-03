@@ -6,7 +6,7 @@ PostAll is an automated content pipeline that generates platform-specific posts 
 
 ## ✨ Features
 
-- **Multi-Platform Publishing**: Twitter/X, LinkedIn, Instagram, Pinterest, WeChat
+- **Multi-Platform Publishing**: Twitter/X, LinkedIn, Instagram, Pinterest, Xiaohongshu
 - **AI Content Generation**: Claude, GPT-4, Gemini support
 - **Director Review System**: AI-powered quality control before publishing
 - **Brand Consistency**: Define your voice, tone, and style once — apply everywhere
@@ -170,8 +170,7 @@ python -m postall.cli review --project project.yaml
 | LinkedIn | ✅ | ✅ | Personal & Company pages |
 | Instagram | ✅ | ✅ | Requires Meta Business |
 | Pinterest | ✅ | ✅ | |
-| WeChat | ✅ | ✅ | Article format |
-| Xiaohongshu | 🔜 | ✅ | Card generation ready |
+| Xiaohongshu | ✅ | ✅ | Card generation + publishing |
 
 ## 🛠 Development
 
