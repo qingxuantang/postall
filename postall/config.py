@@ -134,10 +134,6 @@ THREADS_ENABLED = os.getenv("THREADS_ENABLED", "false").lower() == "true"
 THREADS_ACCESS_TOKEN = os.getenv("THREADS_ACCESS_TOKEN", "")
 THREADS_USER_ID = os.getenv("THREADS_USER_ID", "")
 
-# WeChat
-WECHAT_ENABLED = os.getenv("WECHAT_ENABLED", "false").lower() == "true"
-WECHAT_API_KEY = os.getenv("WECHAT_API_KEY", "")
-WECHAT_ACCOUNT_ID = os.getenv("WECHAT_ACCOUNT_ID", "")
 
 
 # ================================
@@ -197,7 +193,6 @@ def apply_project_config():
     global TIMEZONE, GENERATION_DAY, GENERATION_TIME
     global REMINDER_1_DAY, REMINDER_1_TIME, REMINDER_2_DAY, REMINDER_2_TIME
     global TWITTER_ENABLED, LINKEDIN_ENABLED, INSTAGRAM_ENABLED
-    global PINTEREST_ENABLED, THREADS_ENABLED, WECHAT_ENABLED
     global PLATFORMS
 
     project = get_current_project()
@@ -225,7 +220,6 @@ def apply_project_config():
             "instagram": "INSTAGRAM_ENABLED",
             "pinterest": "PINTEREST_ENABLED",
             "threads": "THREADS_ENABLED",
-            "wechat": "WECHAT_ENABLED",
         }
         for platform_key, platform_creds in project.platforms.items():
             global_name = platform_to_global.get(platform_key)
@@ -296,7 +290,6 @@ def get_social_links_text(target_platform: str = "") -> str:
     
     Platform-specific CTA rules:
     - twitter/linkedin: YouTube link only
-    - wechat: Bilibili link only
     - ai_coach: ALL platforms, with platform-specific tracking suffix
     - other/empty: all links
     """
@@ -312,8 +305,6 @@ def get_social_links_text(target_platform: str = "") -> str:
         'linkedin': 'linkedin',
         'instagram-posts': 'instagram',
         'instagram': 'instagram',
-        'wechat-posts': 'wechat',
-        'wechat': 'wechat',
     }
     
     parts = []
@@ -338,11 +329,6 @@ def get_social_links_text(target_platform: str = "") -> str:
         elif target_platform in ('x-tweets', 'twitter', 'linkedin-posts', 'linkedin'):
             # YouTube + AI Coach for Twitter and LinkedIn
             if link_key not in ('youtube',):
-                continue
-            parts.append(f"  - {label}: {url}")
-        elif target_platform in ('wechat-posts', 'wechat'):
-            # Bilibili + AI Coach for WeChat
-            if link_key not in ('bilibili',):
                 continue
             parts.append(f"  - {label}: {url}")
         else:
@@ -419,13 +405,6 @@ def get_platforms() -> Dict[str, Dict[str, Any]]:
             "output_folder": "substack-posts",
             "posting_times": ["09:00"],
             "enabled": False
-        },
-        "wechat": {
-            "name": "WeChat",
-            "output_folder": "wechat-posts",
-            "max_length": 20000,
-            "posting_times": ["08:00", "12:00"],
-            "enabled": WECHAT_ENABLED
         }
     }
 

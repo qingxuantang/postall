@@ -803,14 +803,6 @@ Output format — write ONLY the improved post content in markdown:
 - Include a strong opening hook (first 2 lines are visible before "see more")
 - End with a clear CTA or engagement question
 - Do NOT fabricate statistics or unverifiable data — use personal observations instead"""
-            elif platform == 'wechat':
-                platform_constraint = """- WeChat公众号: Long-form article format (800-2000 characters)
-- Write ALL content in Chinese (中文)
-- Use engaging, conversational Chinese suitable for WeChat readers
-- Structure with clear sections and visual breaks
-- Include a compelling title (will be extracted from first heading)
-- End with engagement CTA
-- Do NOT fabricate statistics or unverifiable data"""
             elif platform == 'instagram':
                 platform_constraint = """- Instagram: Visual-first carousel posts + single image posts
 - Caption: 150-250 words, optimized for engagement

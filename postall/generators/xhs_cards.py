@@ -160,7 +160,7 @@ def _extract_body_content(content):
     skip_patterns = [
         r'^\*\*Post Type:\*\*', r'^\*\*Theme:\*\*', r'^\*\*Day:\*\*',
         r'^\*\*Generated:\*\*', r'^\*\*Posting Time:\*\*', r'^\*\*Content Pillar:\*\*',
-        r'^## WeChat Article', r'^### Image Prompt', r'^🤖', r'^📚', r'^---$',
+        r'^## Article', r'^### Image Prompt', r'^🤖', r'^📚', r'^---$',
     ]
     
     for line in lines:
@@ -367,7 +367,7 @@ def generate_xhs_cards(wechat_md_path, cover_image_path, output_dir, cover_title
     生成小红书卡片
     
     Args:
-        wechat_md_path: 微信文章 markdown 文件路径
+        wechat_md_path: Markdown 文章 markdown 文件路径
         cover_image_path: 封面配图路径
         output_dir: 输出目录
         cover_title: 封面标题文字
@@ -379,7 +379,7 @@ def generate_xhs_cards(wechat_md_path, cover_image_path, output_dir, cover_title
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         
-        # 读取微信文章
+        # 读取Markdown 文章
         with open(wechat_md_path, 'r', encoding='utf-8') as f:
             raw_content = f.read()
         
@@ -411,7 +411,7 @@ def generate_xhs_cards(wechat_md_path, cover_image_path, output_dir, cover_title
         }
 
 def extract_title_from_wechat(wechat_md_path):
-    """从微信文章中提取标题"""
+    """从Markdown 文章中提取标题"""
     with open(wechat_md_path, 'r', encoding='utf-8') as f:
         content = f.read()
     
@@ -420,8 +420,8 @@ def extract_title_from_wechat(wechat_md_path):
     if match:
         return match.group(1).strip()
     
-    # 尝试从 ## WeChat Article - 标题 提取
-    match = re.search(r'## WeChat Article - (.+)$', content, re.MULTILINE)
+    # 尝试从 ## Article - 标题 提取
+    match = re.search(r'## Article - (.+)$', content, re.MULTILINE)
     if match:
         return match.group(1).strip()
     

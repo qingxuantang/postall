@@ -24,7 +24,7 @@ def clean_metadata(text: str, platform: str = 'generic') -> str:
     
     Args:
         text: Raw content with potential metadata
-        platform: Platform name (wechat keeps ### subheadings)
+        platform: Platform name (long-form content keeps ### subheadings)
     
     Returns:
         Clean content ready for publishing

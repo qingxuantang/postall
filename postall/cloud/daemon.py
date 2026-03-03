@@ -137,7 +137,6 @@ class CloudDaemon:
         """Get publisher status for health server."""
         status = {}
 
-        for platform in ['twitter', 'pinterest', 'linkedin', 'instagram', 'threads', 'wechat']:
             try:
                 publisher = self._get_publisher(platform)
                 if publisher and publisher.is_configured:
@@ -170,9 +169,6 @@ class CloudDaemon:
             elif platform == 'threads':
                 from postall.publishers.threads_publisher import ThreadsPublisher
                 self._publishers[platform] = ThreadsPublisher()
-            elif platform == 'wechat':
-                from postall.publishers.wechat_publisher import WeChatPublisher
-                self._publishers[platform] = WeChatPublisher()
             else:
                 return None
         except ImportError:
