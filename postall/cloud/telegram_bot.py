@@ -135,6 +135,8 @@ class TelegramCommandBot:
             'cancel_generation': self._callback_cancel_generation,
             'confirm_generation': self._callback_confirm_generation,
             'force_generate': self._callback_force_generate,
+            'confirm_publish': self._callback_confirm_publish,
+            'cancel_publish': self._callback_cancel_publish,
             # Content quality feedback handlers
             'rate_perfect': self._callback_rate_content,
             'rate_excellent': self._callback_rate_content,
@@ -601,27 +603,34 @@ Tap a button to execute a command:
         await self._send_message(chat_id, '\n'.join(lines))
 
     async def _cmd_publish(self, chat_id: str, text: str):
-        """Handle /publish command - force publish due posts."""
+        """Handle /publish command - force publish due posts (with confirmation)."""
         due_posts = self.db.get_due_posts()
 
         if not due_posts:
             await self._send_message(chat_id, "No posts are currently due for publishing.")
             return
 
+        # Show confirmation dialog
+        keyboard = self._make_inline_keyboard([
+            [("✅ Yes, Publish Now", "confirm_publish"), ("❌ Cancel", "cancel_publish")]
+        ])
+
+        # Build post summary
+        platforms = {}
+        for post in due_posts:
+            platform = post.get('platform', 'unknown')
+            platforms[platform] = platforms.get(platform, 0) + 1
+
+        summary_lines = [f"  • {platform}: {count}" for platform, count in platforms.items()]
+
         await self._send_message(
             chat_id,
-            f"Found {len(due_posts)} due post(s). Triggering publish check..."
+            f"<b>⚠️ Publish Confirmation</b>\n\n"
+            f"Found <b>{len(due_posts)}</b> post(s) due for publishing:\n"
+            f"{chr(10).join(summary_lines)}\n\n"
+            f"Are you sure you want to publish now?",
+            reply_markup=keyboard
         )
-
-        if self.check_callback:
-            try:
-                # Run the check callback
-                await self.check_callback()
-                await self._send_message(chat_id, "Publish check completed. Check /status for results.")
-            except Exception as e:
-                await self._send_message(chat_id, f"Error during publish: {str(e)[:100]}")
-        else:
-            await self._send_message(chat_id, "Publish callback not available.")
 
     async def _cmd_content_status(self, chat_id: str, text: str):
         """Handle /content_status command - check next week's content status."""
@@ -787,6 +796,58 @@ Tap a button to execute a command:
                 await self._send_message(chat_id, f"❌ Generation failed: {str(e)[:200]}")
         else:
             await self._send_message(chat_id, "Generation callback not available.")
+
+    async def _callback_confirm_publish(
+        self,
+        callback_id: str,
+        chat_id: str,
+        message_id: int,
+        data: str
+    ):
+        """Handle confirm publish button press."""
+        await self._answer_callback(callback_id, "Publishing...")
+
+        await self._edit_message(
+            chat_id,
+            message_id,
+            "⏳ <b>Publishing...</b>\n\nTriggering publish check..."
+        )
+
+        if self.check_callback:
+            try:
+                await self.check_callback()
+                await self._edit_message(
+                    chat_id,
+                    message_id,
+                    "✅ <b>Publish Complete</b>\n\nPublish check completed. Use /status to see results."
+                )
+            except Exception as e:
+                await self._edit_message(
+                    chat_id,
+                    message_id,
+                    f"❌ <b>Publish Failed</b>\n\nError: {str(e)[:200]}"
+                )
+        else:
+            await self._edit_message(
+                chat_id,
+                message_id,
+                "❌ Publish callback not available."
+            )
+
+    async def _callback_cancel_publish(
+        self,
+        callback_id: str,
+        chat_id: str,
+        message_id: int,
+        data: str
+    ):
+        """Handle cancel publish button press."""
+        await self._answer_callback(callback_id, "Cancelled")
+        await self._edit_message(
+            chat_id,
+            message_id,
+            "❌ <b>Publish Cancelled</b>\n\nNo posts were published."
+        )
 
     # ==========================================
     # GENERATION REMINDER METHODS
