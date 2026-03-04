@@ -9,6 +9,27 @@
 
 PostAll 是一个完整的内容自动化流水线，它能根据你的品牌指南和内容策略生成平台优化的帖子，通过 AI 质量控制进行审核，并自动发布到多个社交平台。
 
+## 🎯 工作流程
+
+### 端到端内容自动化
+![PostAll 工作流](https://postall.live/assets/hero/01_workflow.jpg)
+
+### 一次配置，持续自动化
+![一次配置](https://postall.live/assets/hero/02_setup.jpg)
+只需配置一次品牌信息，AI 自动处理后续所有工作。
+
+### AI 内容总监审核系统
+![Director 审核](https://postall.live/assets/hero/03_director.jpg)
+自动进行品牌一致性检查、事实核查、平台最佳实践审核。
+
+### 智能图片生成
+![图片生成](https://postall.live/assets/hero/04_images.jpg)
+自动生成各平台优化尺寸的配图。推荐使用 Gemini Pro 3。
+
+### 自动排期与发布
+![自动发布](https://postall.live/assets/hero/05_publish.jpg)
+AI 安排最佳发布时间并自动发布，无需手动拖拽排期。
+
 ## ✨ 功能特点
 
 - **🤖 AI 内容生成** - 支持 Claude、GPT-4 和 Gemini

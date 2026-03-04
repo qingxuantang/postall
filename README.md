@@ -9,6 +9,27 @@
 
 PostAll is a complete content automation pipeline that generates platform-optimized posts from your brand guidelines and content strategy, reviews them with AI quality control, and publishes across multiple social platforms.
 
+## 🎯 How It Works
+
+### End-to-End Content Automation
+![PostAll Workflow](https://postall.live/assets/hero/01_workflow.jpg)
+
+### One-Time Setup, Endless Automation
+![One-Time Setup](https://postall.live/assets/hero/02_setup.jpg)
+Configure your brand once - AI handles everything else automatically.
+
+### AI Director Review System
+![Director Review](https://postall.live/assets/hero/03_director.jpg)
+Quality control with brand alignment, factual accuracy, and platform best practices.
+
+### Smart Image Generation
+![Image Generation](https://postall.live/assets/hero/04_images.jpg)
+Auto-generate platform-optimized images with correct dimensions. Gemini Pro 3 recommended.
+
+### Auto Scheduling & Publishing
+![Auto Publishing](https://postall.live/assets/hero/05_publish.jpg)
+AI arranges optimal timing and publishes automatically - no manual drag-and-drop needed.
+
 ## ✨ Features
 
 - **🤖 AI Content Generation** - Powered by Claude, GPT-4, and Gemini
