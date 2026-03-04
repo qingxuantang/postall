@@ -9,6 +9,14 @@
 
 PostAll is a complete content automation pipeline that generates platform-optimized posts from your brand guidelines and content strategy, reviews them with AI quality control, and publishes across multiple social platforms.
 
+## 📺 Demo
+
+See the Telegram Bot in action:
+
+[![PostAll Telegram Bot Demo](https://img.youtube.com/vi/12EMDFuA8mc/maxresdefault.jpg)](https://youtube.com/shorts/12EMDFuA8mc)
+
+*Click to watch the demo video*
+
 ## 🎯 How It Works
 
 ### End-to-End Content Automation
