@@ -17,6 +17,24 @@ See the Telegram Bot in action:
 
 *Click to watch the demo video*
 
+## 🤖 AI Agent Integration
+
+**Let your AI agent integrate PostAll directly!** Just point your agent to our skill files:
+
+| File | URL | Description |
+|------|-----|-------------|
+| **SKILL.md** | [`https://postall.live/skill.md`](https://postall.live/skill.md) | Full integration guide for AI agents |
+| **skill.json** | [`https://postall.live/skill.json`](https://postall.live/skill.json) | Machine-readable metadata |
+
+**Quick start for agents:**
+```bash
+# Your AI agent can fetch and read these files directly
+curl https://postall.live/skill.md
+curl https://postall.live/skill.json
+```
+
+The skill files contain everything an AI agent needs: CLI commands, Docker setup, Telegram bot integration, environment variables, and configuration examples.
+
 ## 🎯 How It Works
 
 ### End-to-End Content Automation

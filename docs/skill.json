@@ -1,0 +1,137 @@
+{
+  "name": "postall",
+  "version": "1.0.0",
+  "description": "AI-powered multi-platform social media content generation and publishing automation",
+  "homepage": "https://postall.live",
+  "repository": "https://github.com/qingxuantang/postall",
+  "documentation": "https://postall.live/skill.md",
+  "license": "MIT",
+  "metadata": {
+    "emoji": "📮",
+    "category": "content-automation",
+    "tags": ["social-media", "content-generation", "ai", "automation", "publishing"]
+  },
+  "platforms": {
+    "supported": ["twitter", "linkedin", "instagram", "pinterest", "threads", "xiaohongshu", "wechat"],
+    "image_dimensions": {
+      "twitter": "1200x675",
+      "linkedin": "1200x627",
+      "instagram": "1080x1080",
+      "pinterest": "1000x1500"
+    }
+  },
+  "ai_providers": {
+    "supported": ["anthropic", "openai", "google"],
+    "models": {
+      "content_generation": ["claude-3-opus", "claude-3-sonnet", "gpt-4", "gpt-4-turbo", "gemini-pro"],
+      "image_generation": ["gemini-pro-vision", "dall-e-3"]
+    }
+  },
+  "installation": {
+    "docker": {
+      "command": "docker-compose up -d",
+      "requirements": ["docker", "docker-compose"]
+    },
+    "local": {
+      "command": "pip install -e .",
+      "requirements": ["python>=3.9"]
+    }
+  },
+  "cli": {
+    "base_command": "python -m postall.cli",
+    "commands": {
+      "generate": {
+        "description": "Generate content for all or specific platforms",
+        "usage": "python -m postall.cli generate --project <path>",
+        "options": {
+          "--project": "Path to project.yaml (required)",
+          "--platform": "Specific platform to generate for",
+          "--model": "AI model to use (claude, gpt4, gemini)",
+          "--topic": "Specific topic to generate content for"
+        }
+      },
+      "publish": {
+        "description": "Publish pending content",
+        "usage": "python -m postall.cli publish --project <path>",
+        "options": {
+          "--project": "Path to project.yaml (required)",
+          "--platform": "Specific platform to publish to"
+        }
+      },
+      "daemon": {
+        "description": "Run continuously with auto-generation and publishing",
+        "usage": "python -m postall.cli daemon --project <path>"
+      },
+      "status": {
+        "description": "Check system status",
+        "usage": "python -m postall.cli status --project <path>"
+      },
+      "review": {
+        "description": "Review generated content",
+        "usage": "python -m postall.cli review --project <path>"
+      }
+    }
+  },
+  "telegram_bot": {
+    "enabled": true,
+    "commands": {
+      "/start": "Initialize the bot",
+      "/status": "View current system status",
+      "/upcoming": "Posts scheduled for next 24 hours",
+      "/schedule": "Today's posting schedule",
+      "/stats": "Recent publishing statistics",
+      "/generate": "Trigger content generation",
+      "/publish": "Manually trigger publishing",
+      "/help": "Show all commands"
+    },
+    "menu_buttons": ["Upcoming", "Schedule", "Stats", "Content Status", "Generate"]
+  },
+  "environment_variables": {
+    "required_one_of": ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY"],
+    "optional": {
+      "TWITTER_ENABLED": "Enable Twitter publishing",
+      "TWITTER_API_KEY": "Twitter API key",
+      "TWITTER_API_SECRET": "Twitter API secret",
+      "TWITTER_ACCESS_TOKEN": "Twitter access token",
+      "TWITTER_ACCESS_SECRET": "Twitter access secret",
+      "LINKEDIN_ENABLED": "Enable LinkedIn publishing",
+      "LINKEDIN_ACCESS_TOKEN": "LinkedIn access token",
+      "INSTAGRAM_ENABLED": "Enable Instagram publishing",
+      "INSTAGRAM_ACCESS_TOKEN": "Instagram access token",
+      "TELEGRAM_BOT_ENABLED": "Enable Telegram bot",
+      "TELEGRAM_BOT_TOKEN": "Telegram bot token",
+      "TELEGRAM_CHAT_ID": "Telegram chat ID for notifications"
+    }
+  },
+  "features": {
+    "content_generation": {
+      "description": "AI generates platform-optimized posts from brand guidelines",
+      "ai_powered": true
+    },
+    "director_review": {
+      "description": "Second AI reviews for quality, brand alignment, factual accuracy",
+      "checks": ["brand_alignment", "quality_standards", "platform_fit", "factual_accuracy", "compliance"]
+    },
+    "image_generation": {
+      "description": "Auto-generate matching visuals with correct dimensions per platform",
+      "ai_powered": true
+    },
+    "multi_platform_publishing": {
+      "description": "Publish to multiple social platforms from single configuration"
+    },
+    "rlhf_learning": {
+      "description": "System improves from feedback over time"
+    },
+    "smart_scheduling": {
+      "description": "Optimal posting times per platform"
+    }
+  },
+  "skill_files": {
+    "skill.md": "https://postall.live/skill.md",
+    "skill.json": "https://postall.live/skill.json"
+  },
+  "resources": {
+    "demo_video": "https://youtube.com/shorts/12EMDFuA8mc",
+    "platform_setup_guide": "https://github.com/qingxuantang/postall/blob/master/docs/PLATFORM_SETUP.md"
+  }
+}
