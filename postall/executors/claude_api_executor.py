@@ -139,10 +139,10 @@ Symbolic interaction: Redefine concepts"""
 - Specific examples over abstract claims"""
 
         # 注入当前日期用于时效性检查
-        current_date = datetime.now().strftime("%Y-%m-%d")
-        current_year = datetime.now().year
+            current_date = datetime.now().strftime("%Y-%m-%d")
+            current_year = datetime.now().year
         
-        system_message = f"""You are an expert social media content creator for {brand_name}.
+            system_message = f"""You are an expert social media content creator for {brand_name}.
 Content language: {"Chinese (中文)" if lang == "zh" else "English" if lang == "en" else "match the brand voice"}
 
 **⚠️ CRITICAL - TIMELINESS CHECK (当前日期: {current_date}):**
