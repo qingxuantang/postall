@@ -41,6 +41,55 @@ AI 安排最佳发布时间并自动发布，无需手动拖拽排期。
 - **⏰ 智能排期** - 每个平台的最佳发布时间
 - **🔄 守护进程模式** - 持续运行，自动生成和发布
 
+## 🤖 AI Agent 集成
+
+PostAll 专为 AI Agent 自动化设计。使用我们的 **Agent CLI** 或通过 skill 文件集成。
+
+### Agent CLI（新功能！）
+
+专为 AI Agent 设计的命令行工具，所有输出都是 JSON 格式：
+
+```bash
+# 安装
+pip install postall-agent
+
+# 生成多平台内容
+postall-agent generate --topic "AI 如何改变我们的工作方式" --platforms twitter,linkedin,wechat,xhs
+
+# 输出示例（所有命令返回 JSON）
+{
+  "success": true,
+  "draft_id": "abc123",
+  "contents": {
+    "twitter": {"thread": ["推文1...", "推文2...", "推文3..."]},
+    "linkedin": {"post": "专业内容..."},
+    "wechat": {"title": "标题", "article": "公众号文章..."},
+    "xhs": {"title": "小红书标题", "content": "笔记内容...", "tags": ["AI", "效率"]}
+  },
+  "image_prompt": "A futuristic workspace..."
+}
+
+# 生成配图
+postall-agent image --draft abc123
+
+# 发布到平台
+postall-agent publish --draft abc123 --platforms twitter,linkedin
+
+# 列出草稿
+postall-agent list --status draft
+```
+
+完整文档请见 [postall-agent/README.md](postall-agent/README.md)。
+
+### Skill 文件
+
+用于 AI Agent 的 HTTP 发现方式：
+
+| 文件 | URL | 说明 |
+|------|-----|------|
+| **SKILL.md** | [`https://postall.live/skill.md`](https://postall.live/skill.md) | AI Agent 完整集成指南 |
+| **skill.json** | [`https://postall.live/skill.json`](https://postall.live/skill.json) | 机器可读的元数据 |
+
 ## 🚀 快速开始
 
 ### 环境要求

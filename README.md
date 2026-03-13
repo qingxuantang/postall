@@ -19,21 +19,58 @@ See the Telegram Bot in action:
 
 ## 🤖 AI Agent Integration
 
-**Let your AI agent integrate PostAll directly!** Just point your agent to our skill files:
+PostAll is designed for AI agent automation. Use our **Agent CLI** or integrate via skill files.
+
+### Agent CLI (NEW!)
+
+A dedicated command-line interface for AI agents with JSON output:
+
+```bash
+# Install
+pip install postall-agent
+
+# Generate content for multiple platforms
+postall-agent generate --topic "AI is changing how we work" --platforms twitter,linkedin,wechat,xhs
+
+# Output (all commands return JSON)
+{
+  "success": true,
+  "draft_id": "abc123",
+  "contents": {
+    "twitter": {"thread": ["Tweet 1...", "Tweet 2...", "Tweet 3..."]},
+    "linkedin": {"post": "Professional content..."},
+    "wechat": {"title": "标题", "article": "公众号文章..."},
+    "xhs": {"title": "小红书标题", "content": "笔记内容...", "tags": ["AI", "效率"]}
+  },
+  "image_prompt": "A futuristic workspace..."
+}
+
+# Generate cover image
+postall-agent image --draft abc123
+
+# Publish to platforms
+postall-agent publish --draft abc123 --platforms twitter,linkedin
+
+# List drafts
+postall-agent list --status draft
+```
+
+See [postall-agent/README.md](postall-agent/README.md) for full documentation.
+
+### Skill Files
+
+For AI agents that prefer HTTP-based discovery:
 
 | File | URL | Description |
 |------|-----|-------------|
 | **SKILL.md** | [`https://postall.live/skill.md`](https://postall.live/skill.md) | Full integration guide for AI agents |
 | **skill.json** | [`https://postall.live/skill.json`](https://postall.live/skill.json) | Machine-readable metadata |
 
-**Quick start for agents:**
 ```bash
 # Your AI agent can fetch and read these files directly
 curl https://postall.live/skill.md
 curl https://postall.live/skill.json
 ```
-
-The skill files contain everything an AI agent needs: CLI commands, Docker setup, Telegram bot integration, environment variables, and configuration examples.
 
 ## 🎯 How It Works
 
