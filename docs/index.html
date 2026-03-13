@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PostAll - AI-Powered Multi-Platform Content Automation</title>
+    <meta name="description" content="Generate and publish content across Twitter, LinkedIn, Instagram, and more with AI. One config, all platforms.">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📮</text></svg>">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary: #ec4899;
+            --dark: #0f172a;
+            --gray: #64748b;
+            --light: #f8fafc;
+            --gradient: linear-gradient(135deg, #6366f1 0%, #ec4899 100%);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--dark);
+            line-height: 1.6;
+            background: var(--light);
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+        
+        /* Navigation */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            z-index: 100;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+        
+        .nav-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 24px;
+            font-weight: 800;
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-decoration: none;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 32px;
+            align-items: center;
+        }
+        
+        .nav-links a {
+            color: var(--gray);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        
+        .nav-links a:hover {
+            color: var(--primary);
+        }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: var(--gradient);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(99, 102, 241, 0.3);
+        }
+        
+        .btn-secondary {
+            background: white;
+            color: var(--dark);
+            border: 2px solid #e2e8f0;
+        }
+        
+        .btn-secondary:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+        
+        /* Hero Section */
+        .hero {
+            padding-top: 60px;
+            background: #faf8f5;
+        }
+        
+        .hero-text {
+            text-align: center;
+            padding: 32px 24px 24px;
+        }
+        
+        .hero-text h1 {
+            font-size: 42px;
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 16px;
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .hero-text p {
+            font-size: 18px;
+            color: var(--gray);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .hero-slideshow {
+            position: relative;
+            width: 100%;
+            overflow: hidden;
+        }
+        
+        .hero-slide {
+            display: none;
+            width: 100%;
+        }
+        
+        .hero-slide.active {
+            display: block;
+        }
+        
+        .hero-slide img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        
+        .hero-buttons {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            padding: 20px 0;
+            background: #faf8f5;
+        }
+        
+        /* Agent Integration Section */
+        .agent-integration {
+            padding: 60px 0;
+            background: white;
+        }
+        
+        .agent-integration h2 {
+            text-align: center;
+            font-size: 36px;
+            margin-bottom: 16px;
+        }
+        
+        .agent-intro {
+            text-align: center;
+            color: var(--gray);
+            font-size: 18px;
+            margin-bottom: 32px;
+        }
+        
+        .skill-files {
+            display: flex;
+            gap: 24px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .skill-file {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            background: var(--light);
+            padding: 20px 24px;
+            border-radius: 12px;
+            text-decoration: none;
+            color: var(--dark);
+            border: 2px solid transparent;
+            transition: all 0.2s;
+            min-width: 320px;
+        }
+        
+        .skill-file:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.15);
+        }
+        
+        .file-icon {
+            font-size: 32px;
+        }
+        
+        .file-info {
+            flex: 1;
+        }
+        
+        .file-info strong {
+            display: block;
+            font-size: 18px;
+            margin-bottom: 4px;
+        }
+        
+        .file-info span {
+            color: var(--gray);
+            font-size: 14px;
+        }
+        
+        .skill-file code {
+            background: var(--dark);
+            color: #10b981;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: 'SF Mono', Monaco, monospace;
+        }
+        
+        /* CLI Section */
+        .cli-section {
+            margin-bottom: 48px;
+        }
+        
+        .cli-section h3, .skill-section h3 {
+            text-align: center;
+            font-size: 24px;
+            margin-bottom: 8px;
+            color: var(--dark);
+        }
+        
+        .cli-intro, .skill-intro {
+            text-align: center;
+            color: var(--gray);
+            margin-bottom: 24px;
+        }
+        
+        .cli-demo {
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr;
+            gap: 32px;
+            align-items: start;
+        }
+        
+        .cli-window {
+            background: #1e1e1e;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        .cli-header {
+            background: #323232;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .cli-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        .cli-dot.red { background: #ff5f56; }
+        .cli-dot.yellow { background: #ffbd2e; }
+        .cli-dot.green { background: #27ca40; }
+        
+        .cli-title {
+            color: #999;
+            font-size: 13px;
+            margin-left: 8px;
+        }
+        
+        .cli-body {
+            padding: 20px;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        
+        .cli-line {
+            margin-bottom: 8px;
+        }
+        
+        .cli-prompt {
+            color: #10b981;
+            margin-right: 8px;
+        }
+        
+        .cli-command {
+            color: #e2e8f0;
+        }
+        
+        .cli-output {
+            margin: 12px 0;
+        }
+        
+        .cli-output pre {
+            color: #94a3b8;
+            margin: 0;
+            white-space: pre-wrap;
+            font-size: 12px;
+        }
+        
+        .cli-features {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .cli-feature {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px 20px;
+            background: var(--light);
+            border-radius: 12px;
+            transition: transform 0.2s;
+        }
+        
+        .cli-feature:hover {
+            transform: translateX(4px);
+        }
+        
+        .cli-feature-icon {
+            font-size: 24px;
+        }
+        
+        .cli-feature strong {
+            display: block;
+            font-size: 15px;
+            margin-bottom: 2px;
+        }
+        
+        .cli-feature span {
+            color: var(--gray);
+            font-size: 13px;
+        }
+        
+        .skill-section {
+            padding-top: 32px;
+            border-top: 1px solid #e2e8f0;
+        }
+        
+        /* Features Section */
+        .features {
+            padding: 60px 0;
+        }
+        
+        .features h2 {
+            text-align: center;
+            font-size: 36px;
+            margin-bottom: 48px;
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+        }
+        
+        .feature-card {
+            background: white;
+            padding: 28px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            transition: transform 0.2s;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-4px);
+        }
+        
+        .feature-icon {
+            width: 52px;
+            height: 52px;
+            background: var(--gradient);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            margin-bottom: 16px;
+        }
+        
+        .feature-card h3 {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+        
+        .feature-card p {
+            color: var(--gray);
+            font-size: 14px;
+        }
+        
+        /* CTA Section */
+        .cta {
+            padding: 60px 0;
+            text-align: center;
+            background: var(--gradient);
+            color: white;
+        }
+        
+        .cta h2 {
+            font-size: 36px;
+            margin-bottom: 16px;
+        }
+        
+        .cta p {
+            font-size: 16px;
+            opacity: 0.9;
+            margin-bottom: 24px;
+        }
+        
+        .btn-white {
+            background: white;
+            color: var(--primary);
+        }
+        
+        .btn-white:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+        
+        /* Footer */
+        footer {
+            padding: 32px 0;
+            text-align: center;
+            color: var(--gray);
+            font-size: 14px;
+        }
+        
+        footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero-text h1 {
+                font-size: 28px;
+            }
+            
+            .hero-text p {
+                font-size: 15px;
+            }
+            
+            .hero-text {
+                padding: 24px 20px 16px;
+            }
+            
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .nav-links {
+                display: none;
+            }
+            
+            .hero-buttons {
+                flex-direction: column;
+                align-items: center;
+                padding: 20px 24px;
+            }
+            
+            .btn {
+                width: 100%;
+                max-width: 280px;
+                justify-content: center;
+            }
+            
+            .skill-files {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .skill-file {
+                min-width: auto;
+                width: 100%;
+                max-width: 360px;
+                flex-wrap: wrap;
+            }
+            
+            .skill-file code {
+                width: 100%;
+                text-align: center;
+                margin-top: 8px;
+            }
+            
+            .cli-demo {
+                grid-template-columns: 1fr;
+            }
+            
+            .cli-window {
+                order: 1;
+            }
+            
+            .cli-features {
+                order: 2;
+                flex-direction: row;
+                flex-wrap: wrap;
+            }
+            
+            .cli-feature {
+                flex: 1 1 45%;
+                min-width: 140px;
+            }
+            
+            .cli-body {
+                font-size: 11px;
+                padding: 16px;
+            }
+            
+            .cli-output pre {
+                font-size: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav>
+        <div class="nav-content">
+            <a href="#" class="logo">📮 PostAll</a>
+            <div class="nav-links">
+                <a href="#agents">Agent Integration</a>
+                <a href="#features">Features</a>
+                <a href="https://github.com/qingxuantang/postall">GitHub</a>
+                <a href="https://github.com/qingxuantang/postall" class="btn btn-primary">Get Started</a>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-text">
+            <h1>AI-Powered Content<br>Automation</h1>
+            <p>Generate, review, and publish content across all social platforms automatically. One setup, endless automation.</p>
+        </div>
+        <div class="hero-slideshow">
+            <div class="hero-slide active">
+                <img src="./assets/hero/01_workflow.jpg" alt="PostAll Workflow">
+            </div>
+            <div class="hero-slide">
+                <img src="./assets/hero/02_setup.jpg" alt="One-Time Setup">
+            </div>
+            <div class="hero-slide">
+                <img src="./assets/hero/03_director.jpg" alt="Director Review">
+            </div>
+            <div class="hero-slide">
+                <img src="./assets/hero/04_images.jpg" alt="Smart Image Generation">
+            </div>
+            <div class="hero-slide">
+                <img src="./assets/hero/05_publish.jpg" alt="Auto Publishing">
+            </div>
+        </div>
+        <div class="hero-buttons">
+            <a href="https://github.com/qingxuantang/postall" class="btn btn-primary">
+                ⭐ Star on GitHub
+            </a>
+            <a href="#features" class="btn btn-secondary">
+                Learn More →
+            </a>
+        </div>
+    </section>
+    
+    <!-- Agent Integration Section -->
+    <section class="agent-integration" id="agents">
+        <div class="container">
+            <h2>🤖 AI Agent Integration</h2>
+            <p class="agent-intro">Built for AI agents. Use our CLI or integrate via skill files.</p>
+            
+            <!-- Agent CLI Section -->
+            <div class="cli-section">
+                <h3>Agent CLI</h3>
+                <p class="cli-intro">JSON-first command line for AI agents. Works with OpenClaw, Claude, and more.</p>
+                <div class="cli-demo">
+                    <div class="cli-window">
+                        <div class="cli-header">
+                            <span class="cli-dot red"></span>
+                            <span class="cli-dot yellow"></span>
+                            <span class="cli-dot green"></span>
+                            <span class="cli-title">Terminal</span>
+                        </div>
+                        <div class="cli-body">
+                            <div class="cli-line">
+                                <span class="cli-prompt">$</span>
+                                <span class="cli-command">pip install postall-agent</span>
+                            </div>
+                            <div class="cli-line">
+                                <span class="cli-prompt">$</span>
+                                <span class="cli-command">postall-agent generate --topic "AI trends" --platforms twitter,wechat,xhs</span>
+                            </div>
+                            <div class="cli-output">
+<pre>{
+  "success": true,
+  "draft_id": "abc123",
+  "contents": {
+    "twitter": {"thread": ["Tweet 1...", "Tweet 2..."]},
+    "wechat": {"title": "标题", "article": "文章..."},
+    "xhs": {"title": "小红书", "content": "笔记..."}
+  }
+}</pre>
+                            </div>
+                            <div class="cli-line">
+                                <span class="cli-prompt">$</span>
+                                <span class="cli-command">postall-agent publish --draft abc123</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="cli-features">
+                        <div class="cli-feature">
+                            <span class="cli-feature-icon">📝</span>
+                            <div>
+                                <strong>Generate</strong>
+                                <span>Multi-platform content from one topic</span>
+                            </div>
+                        </div>
+                        <div class="cli-feature">
+                            <span class="cli-feature-icon">🎨</span>
+                            <div>
+                                <strong>Image</strong>
+                                <span>AI-generated cover images</span>
+                            </div>
+                        </div>
+                        <div class="cli-feature">
+                            <span class="cli-feature-icon">🚀</span>
+                            <div>
+                                <strong>Publish</strong>
+                                <span>Post to all platforms at once</span>
+                            </div>
+                        </div>
+                        <div class="cli-feature">
+                            <span class="cli-feature-icon">🇨🇳</span>
+                            <div>
+                                <strong>China Platforms</strong>
+                                <span>WeChat, Xiaohongshu support</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Skill Files Section -->
+            <div class="skill-section">
+                <h3>Skill Files</h3>
+                <p class="skill-intro">For HTTP-based agent discovery:</p>
+                <div class="skill-files">
+                    <a href="/skill.md" class="skill-file" target="_blank">
+                        <span class="file-icon">📄</span>
+                        <div class="file-info">
+                            <strong>SKILL.md</strong>
+                            <span>Full integration guide for AI agents</span>
+                        </div>
+                        <code>postall.live/skill.md</code>
+                    </a>
+                    <a href="/skill.json" class="skill-file" target="_blank">
+                        <span class="file-icon">📦</span>
+                        <div class="file-info">
+                            <strong>skill.json</strong>
+                            <span>Machine-readable metadata</span>
+                        </div>
+                        <code>postall.live/skill.json</code>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Features Section -->
+    <section class="features" id="features">
+        <div class="container">
+            <h2>Why PostAll?</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🤖</div>
+                    <h3>AI Content Generation</h3>
+                    <p>Powered by Claude, GPT-4, and Gemini. Generate platform-optimized content that matches your brand voice.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🎯</div>
+                    <h3>Director Review</h3>
+                    <p>AI quality control checks brand alignment, factual accuracy, and platform best practices before publishing.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📱</div>
+                    <h3>Multi-Platform</h3>
+                    <p>Twitter/X, LinkedIn, Instagram, Pinterest, Threads, Xiaohongshu - all from one configuration.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🎨</div>
+                    <h3>Smart Images</h3>
+                    <p>Auto-generate matching visuals with correct dimensions for each platform. Gemini Pro 3 recommended.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">⏰</div>
+                    <h3>Auto Scheduling</h3>
+                    <p>AI arranges optimal posting times. No manual drag-and-drop required - just set your preferences.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📈</div>
+                    <h3>RLHF Learning</h3>
+                    <p>System improves from your feedback over time. Rate posts and watch quality improve.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- CTA Section -->
+    <section class="cta">
+        <div class="container">
+            <h2>Ready to Automate?</h2>
+            <p>Open source and free to use. Star us on GitHub to get started.</p>
+            <a href="https://github.com/qingxuantang/postall" class="btn btn-white">
+                View on GitHub →
+            </a>
+        </div>
+    </section>
+    
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <p>📮 PostAll - Open Source Content Automation</p>
+            <p><a href="https://github.com/qingxuantang/postall">GitHub</a> · MIT License</p>
+        </div>
+    </footer>
+    
+    <!-- Slideshow Script -->
+    <script>
+        const slides = document.querySelectorAll('.hero-slide');
+        let currentIndex = 0;
+        const totalSlides = slides.length;
+        
+        function nextSlide() {
+            slides[currentIndex].classList.remove('active');
+            currentIndex = (currentIndex + 1) % totalSlides;
+            slides[currentIndex].classList.add('active');
+        }
+        
+        setInterval(nextSlide, 5000);
+    </script>
+</body>
+</html>
