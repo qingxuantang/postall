@@ -436,6 +436,32 @@ postall/
 
 ---
 
+## Critical Rules
+
+When using PostAll, follow these rules to avoid common issues:
+
+1. **NO parentheses in content** - 括号会导致 LinkedIn 内容被截断
+2. **NO AI clichés** - 避免「久久不能平静」「震撼了我」「颠覆认知」等空洞表达
+3. **NO fabricated data** - 只使用原始内容中的真实信息，不要编造统计数据
+4. **Image prompts in English** - AI 图像生成器无法渲染中文字符
+5. **Handle rate limits gracefully** - 遇到平台限制时等待后重试
+6. **WeChat: use *_content.md files** - Content parser 可能错误分割单篇文章，发布时永远使用完整的 `*_content.md` 文件（如 `wechat_content.md`），不要使用分割后的小文件（如 `01_monday_morning_article.md`）
+
+### Content File Structure
+
+When content is generated, you'll see:
+```
+wechat-posts/
+├── wechat_content.md           # ✅ 完整内容 - 发布时用这个
+├── 01_monday_morning_article.md # ❌ 可能被截断
+├── 02_tuesday_morning_post.md   # ❌ 可能被截断
+└── ...
+```
+
+**Always publish using the `*_content.md` file**, not the numbered split files.
+
+---
+
 ## Troubleshooting
 
 ### Common Issues
