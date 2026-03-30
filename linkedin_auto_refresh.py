@@ -7,7 +7,7 @@ Usage:
     python3 linkedin_auto_refresh.py --test   # Test current token validity
     python3 linkedin_auto_refresh.py --init <access_token> <refresh_token>
     
-Tokens are stored in: projects/tar/.linkedin_tokens.json
+Tokens are stored in: .linkedin_tokens.json (in script directory)
 
 Setup:
 1. Create a LinkedIn App at https://www.linkedin.com/developers/
@@ -23,8 +23,8 @@ import requests
 from pathlib import Path
 from datetime import datetime
 
-# Token storage (relative to project)
-TOKEN_FILE = Path(__file__).parent / "projects/tar/.linkedin_tokens.json"
+# Token storage (in script directory, customize as needed)
+TOKEN_FILE = Path(__file__).parent / ".linkedin_tokens.json"
 
 # LinkedIn OAuth settings - set these or use environment variables
 LINKEDIN_CLIENT_ID = os.getenv("LINKEDIN_CLIENT_ID", "YOUR_CLIENT_ID")
