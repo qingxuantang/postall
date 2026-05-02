@@ -418,15 +418,15 @@ Score each from 0.0 to 1.0:
 2. platform_fit - Content length/format matches {platform} best practices
 3. quality_score - Clear, concise, no grammatical errors, engaging
 4. engagement_potential - Provides value, has clear takeaway
-5. risk_level - 0.0=safe, 1.0=risky (controversial statements, unverifiable claims)
-6. factual_accuracy - All claims are accurate and verifiable; NO fabricated statistics or data
+5. risk_level - 0.0=safe, 1.0=risky (controversial statements, potentially defamatory claims)
+6. factual_accuracy - All claims are plausible and internally consistent; NO fabricated statistics or data
 7. truth_score - Factual accuracy about the creator/brand; no exaggerated claims
 8. relevance_score - Relevance to current audience interests and trends
 9. strategic_score - Alignment with business/channel growth goals
 10. geo_score - GEO (Generative Engine Optimization) quality
 
 ## Important
-- Score factual_accuracy and truth_score LOW (0.3 or below) if the post contains fabricated statistics, invented research findings, or unverifiable data points
+- Score factual_accuracy and truth_score LOW (0.3 or below) ONLY if the post contains obviously fabricated statistics, impossible numbers, or claims that contradict well-known facts. Do NOT penalize specific claims that are plausible but that you cannot independently verify — assume the content creator has access to the source material. Focus on internal consistency and plausibility, not verifiability
 - Score relevance_score based on how well the topic matches what the target audience cares about RIGHT NOW
 - Score strategic_score based on whether the post drives meaningful engagement or channel growth
 - Score geo_score based on: (a) Does it target a specific problem/question users search for? (b) Is value front-loaded in first 2-3 sentences? (c) Contains AI-extractable insights (can be embedded in natural prose — does NOT require bullet lists)? (d) Includes named methods/brands for citation? (e) Question-based or problem-based title?
@@ -475,6 +475,25 @@ Output ONLY the JSON, no other text."""
             except json.JSONDecodeError:
                 pass
 
+        # Try to repair truncated JSON (closing unclosed braces/brackets)
+        if json_match:
+            raw = json_match.group()
+            open_braces = raw.count('{') - raw.count('}')
+            open_brackets = raw.count('[') - raw.count(']')
+            if open_braces > 0 or open_brackets > 0:
+                repaired = raw
+                repaired = re.sub(r',\s*"[^"]*":\s*"?[^"}\]]*$', '', repaired)
+                repaired += ']' * open_brackets + '}' * open_braces
+                try:
+                    data = json.loads(repaired)
+                    if "criteria_scores" in data:
+                        if "issues" not in data:
+                            data["issues"] = []
+                        data.setdefault("feedback", "Parsed from truncated response (auto-repaired).")
+                        return data
+                except json.JSONDecodeError:
+                    pass
+
         # Fallback: return default scores
         return {
             "criteria_scores": {
@@ -483,8 +502,13 @@ Output ONLY the JSON, no other text."""
                 "quality_score": 0.7,
                 "engagement_potential": 0.6,
                 "risk_level": 0.2,
-                "factual_accuracy": 0.8
+                "factual_accuracy": 0.8,
+                "truth_score": 0.7,
+                "relevance_score": 0.7,
+                "strategic_score": 0.5,
+                "geo_score": 0.5
             },
+            "issues": [],
             "feedback": "Unable to parse AI review. Using default scores.",
             "revision_notes": None,
             "human_question": None
