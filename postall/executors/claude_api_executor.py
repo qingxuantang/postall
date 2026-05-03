@@ -26,6 +26,13 @@ try:
 except ImportError:
     THEORY_FRAMEWORK_AVAILABLE = False
 
+# RAG: Semantic retrieval of historical high-scoring content
+try:
+    from postall.rag.retriever import retrieve_similar
+    RAG_AVAILABLE = True
+except ImportError:
+    RAG_AVAILABLE = False
+
 
 def execute_with_claude_api(prompt: str, output_path: Path, platform_key: str, language: str = "") -> Dict[str, Any]:
     """
@@ -192,6 +199,39 @@ Include image generation prompts marked with ## Image Prompts section.
 - Claude models: Latest is Claude 4 Opus/Sonnet (NOT Claude 3 or 3.5)
 - GPT models: Latest is GPT-4o, GPT-4 Turbo
 - Do NOT compare obsolete model versions as if they're current."""
+
+        # RAG: Inject similar high-scoring historical content as few-shot examples
+        if RAG_AVAILABLE:
+            try:
+                lang = language or "auto"
+                rag_platform = platform_key
+                if lang == "zh" and platform_key == "twitter":
+                    rag_platform = "twitter_zh"
+                elif lang == "en" and platform_key == "twitter":
+                    rag_platform = "twitter_en"
+
+                rag_context = retrieve_similar(
+                    query=prompt[:3000],
+                    platform=rag_platform,
+                    language=lang if lang != "auto" else None,
+                    top_k=2,
+                    min_score=8.0,
+                )
+                if rag_context:
+                    system_message += f"""
+
+=== Historical High-Scoring Content Reference ===
+Below are examples of previously approved, high-scoring content on similar topics.
+Use them as STYLE and QUALITY reference only. Do NOT copy, closely paraphrase,
+or reuse their specific angles. Create original content with a fresh perspective.
+
+{rag_context}
+=== End Reference ==="""
+                    print(f"[RAG] Injected {rag_context.count('--- Example')} reference(s) for {platform_key}/{lang}")
+                else:
+                    print(f"[RAG] No matching high-scoring content found for {platform_key}/{lang}")
+            except Exception as e:
+                print(f"[RAG] Retrieval failed (non-fatal): {e}")
 
         # Call Claude API
         message = client.messages.create(

@@ -31,5 +31,8 @@ pathlib2>=2.3.0
 # Cloud Daemon (v2.0)
 aiohttp>=3.9.0       # Async HTTP for health server
 
+# RAG - Semantic retrieval of historical high-scoring content
+chromadb>=1.0.0      # Vector database with built-in local embeddings
+
 # Social Media Publishing
 tweepy>=4.14.0       # Twitter API v2 client
