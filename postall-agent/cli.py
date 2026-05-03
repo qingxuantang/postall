@@ -272,7 +272,8 @@ def cmd_publish(args):
         
         try:
             # Add parent path for PostAll imports
-            sys.path.insert(0, '/opt/postall')
+            postall_path = os.environ.get('POSTALL_ROOT', str(Path(__file__).resolve().parent.parent))
+            sys.path.insert(0, postall_path)
             
             if platform == 'twitter':
                 from postall.publishers.twitter_publisher import TwitterPublisher
@@ -404,9 +405,8 @@ def cmd_accounts(args):
     
     # XHS
     xhs_paths = [
-        Path('/app/data/xiaohongshu/account.json'),
-        Path('/opt/postall/data/xiaohongshu/account.json'),
-        Path(os.path.expanduser('~/.postall/xhs/account.json'))
+        Path(os.path.expanduser('~/.postall/xhs/account.json')),
+        Path('./data/xiaohongshu/account.json'),
     ]
     if os.environ.get('XHS_COOKIE') or any(p.exists() for p in xhs_paths):
         accounts['xhs'] = {"configured": True}

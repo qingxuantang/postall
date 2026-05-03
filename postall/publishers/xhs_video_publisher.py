@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 """
 小红书视频发布器
-用于攀岩二创视频自动发布
+XiaoHongShu (RedNote) video publisher via Playwright
 """
 import asyncio
+import os
 import re
 from pathlib import Path
 from playwright.async_api import async_playwright
 
-# Video publishing account
-ACCOUNT_FILE = "/opt/social-auto-upload/cookies/xiaohongshu_climbing/account.json"
+# Video publishing account - configure via environment or default paths
+ACCOUNT_FILE = os.environ.get(
+    "XHS_ACCOUNT_FILE",
+    str(Path.home() / ".postall" / "xhs" / "account.json"),
+)
 
 def extract_title_and_content(txt_path):
     """从 .txt 文件提取标题和正文"""
@@ -148,14 +152,13 @@ def publish_video_sync(video_path, title=None, content=None, txt_path=None):
 
 if __name__ == "__main__":
     import sys
-    if len(sys.argv) < 2:
-        print("用法: python xhs_video_publisher.py <video_id>")
-        print("例如: python xhs_video_publisher.py 30y8Uy0B_uk")
+    if len(sys.argv) < 3:
+        print("Usage: python xhs_video_publisher.py <video_path> <txt_path>")
+        print("Example: python xhs_video_publisher.py ./video.mp4 ./copy.txt")
         sys.exit(1)
-    
-    video_id = sys.argv[1]
-    video_path = f"/root/.openclaw/workspace/xhs-climbing/output/videos/{video_id}.mp4"
-    txt_path = f"/root/.openclaw/workspace/xhs-climbing/output/copy/{video_id}.txt"
-    
+
+    video_path = sys.argv[1]
+    txt_path = sys.argv[2]
+
     result = publish_video_sync(video_path, txt_path=txt_path)
     print(result)

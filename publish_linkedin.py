@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from linkedin_auto_refresh import get_valid_token
 
 
-def publish_linkedin(content_file, image_file=None, container_name="postall-tar"):
+def publish_linkedin(content_file, image_file=None, container_name="postall"):
     """Publish to LinkedIn with auto token refresh."""
     
     # Get valid token (auto-refresh if needed)

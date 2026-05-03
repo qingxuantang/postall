@@ -428,11 +428,14 @@ def extract_title_from_markdown(content_md_path):
     return "小红书文章"
 
 if __name__ == "__main__":
-    # 测试
+    import sys
+    if len(sys.argv) < 3:
+        print("Usage: python xhs_cards.py <content_md_path> <cover_image_path> [output_dir] [cover_title]")
+        sys.exit(1)
     result = generate_xhs_cards(
-        content_md_path="/opt/postall/projects/tar/output/single_topics/knowledge_business/articles/article_content.md",
-        cover_image_path="/opt/postall/projects/tar/output/single_topics/knowledge_business/image.png",
-        output_dir="/tmp/xhs_test",
-        cover_title="把知识变成百万生意的5种模式"
+        content_md_path=sys.argv[1],
+        cover_image_path=sys.argv[2],
+        output_dir=sys.argv[3] if len(sys.argv) > 3 else "/tmp/xhs_test",
+        cover_title=sys.argv[4] if len(sys.argv) > 4 else None,
     )
     print(result)

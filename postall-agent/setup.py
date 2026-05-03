@@ -7,7 +7,7 @@ setup(
     description="AI-friendly CLI for PostAll content generation and publishing",
     author="Mark Zhou",
     author_email="mark@example.com",
-    url="https://github.com/hukongyi/postall",
+    url="https://github.com/qingxuantang/postall",
     py_modules=["cli"],
     install_requires=[
         "anthropic>=0.18.0",
