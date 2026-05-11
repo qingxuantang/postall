@@ -259,8 +259,11 @@ class TwitterPublisher:
             # Split into thread if needed
             if as_thread and len(content) > self.TWEET_CHAR_LIMIT:
                 tweets = self._split_into_thread(content)
+            elif not as_thread:
+                # Premium / single-post mode: send full content without splitting
+                tweets = [content]
             else:
-                # Truncate if too long
+                # Standard non-premium, short content
                 tweets = [content[:self.TWEET_CHAR_LIMIT]]
 
             # Post tweet(s)

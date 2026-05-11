@@ -38,6 +38,7 @@ from postall.config import (
     REMINDER_1_DAY, REMINDER_1_TIME, REMINDER_2_DAY, REMINDER_2_TIME,
     get_next_week_folder_name
 )
+from postall.project_config import get_current_project
 from postall.cloud.database import ScheduleDatabase
 from postall.cloud.health import HealthServer
 from postall.cloud.notifier import Notifier
@@ -137,6 +138,7 @@ class CloudDaemon:
         """Get publisher status for health server."""
         status = {}
 
+        for platform in ['twitter', 'pinterest', 'linkedin', 'instagram', 'threads']:
             try:
                 publisher = self._get_publisher(platform)
                 if publisher and publisher.is_configured:
@@ -176,6 +178,10 @@ class CloudDaemon:
 
         return self._publishers.get(platform)
 
+    # Rate limit: max publishes per rolling window to prevent bulk re-publishing
+    PUBLISH_RATE_LIMIT = int(os.getenv('PUBLISH_RATE_LIMIT', '3'))
+    PUBLISH_RATE_WINDOW_HOURS = int(os.getenv('PUBLISH_RATE_WINDOW_HOURS', '2'))
+
     async def _check_and_publish(self):
         """Check for due posts and publish them."""
         now = datetime.now(self.timezone)
@@ -197,7 +203,53 @@ class CloudDaemon:
             self.db.record_check(published=0, failed=0)
             return
 
-        console.print(f"[yellow]Found {len(due_posts)} post(s) due[/yellow]")
+        # Pre-filter: skipping a post for an unconfigured platform isn't an
+        # actual publish, so it must not consume the rate-limit budget. Drop
+        # those posts BEFORE the quota slice — otherwise the queue head can
+        # be permanently jammed by 3 unconfigured posts every 2h cycle.
+        publishable_posts = []
+        skipped_unconfigured = 0
+        for post in due_posts:
+            publisher = self._get_publisher(post['platform'])
+            if publisher is not None and publisher.is_configured:
+                publishable_posts.append(post)
+            else:
+                skipped_unconfigured += 1
+        if skipped_unconfigured > 0:
+            console.print(f"[dim]Skipping {skipped_unconfigured} due post(s) for unconfigured platforms (no quota cost)[/dim]")
+        due_posts = publishable_posts
+
+        if not due_posts:
+            console.print("[dim]No publishable posts due (all due platforms unconfigured)[/dim]")
+            self.db.record_check(published=0, failed=0)
+            return
+
+        # Rate limiting: check how many posts were published in the rolling window
+        if not hasattr(self, '_recent_publishes'):
+            self._recent_publishes = []  # list of datetime objects
+
+        window_start = now - timedelta(hours=self.PUBLISH_RATE_WINDOW_HOURS)
+        self._recent_publishes = [t for t in self._recent_publishes if t > window_start]
+        remaining_quota = self.PUBLISH_RATE_LIMIT - len(self._recent_publishes)
+
+        if remaining_quota <= 0:
+            console.print(f"[yellow]Rate limit reached: {self.PUBLISH_RATE_LIMIT} posts in {self.PUBLISH_RATE_WINDOW_HOURS}h window. "
+                          f"{len(due_posts)} post(s) waiting. Will retry next check.[/yellow]")
+            self.db.record_check(published=0, failed=0)
+            return
+
+        if len(due_posts) > remaining_quota:
+            console.print(f"[yellow]⚠ Found {len(due_posts)} due post(s) but rate limit allows {remaining_quota} more "
+                          f"in this {self.PUBLISH_RATE_WINDOW_HOURS}h window. Publishing {remaining_quota}, deferring rest.[/yellow]")
+            await self.notifier.notify_error(
+                f"发布限速: 发现 {len(due_posts)} 篇待发内容，"
+                f"本窗口（{self.PUBLISH_RATE_WINDOW_HOURS}h）还剩 {remaining_quota} 篇额度。"
+                f"已暂缓其余帖子，请检查是否有重复导入。",
+                context="publish_rate_limit"
+            )
+            due_posts = due_posts[:remaining_quota]
+        else:
+            console.print(f"[yellow]Found {len(due_posts)} post(s) due[/yellow]")
 
         published = 0
         failed = 0
@@ -214,6 +266,15 @@ class CloudDaemon:
             publisher = self._get_publisher(platform)
             if not publisher or not publisher.is_configured:
                 console.print(f"    [yellow]Skipped: {platform} not configured[/yellow]")
+                continue
+
+            # ATOMIC CLAIM (BUG-FIX 2026-05-11 daemon-restart-group-publish):
+            # Transition status: 'scheduled' -> 'publishing'. If we don't own
+            # the claim (another loop iteration or another daemon instance got
+            # there first), skip silently. This is the LAST line of defense
+            # against double-publish.
+            if not self.db.claim_post_for_publishing(post_id):
+                console.print(f"    [dim]Skipped: already claimed by another worker (post_id={post_id})[/dim]")
                 continue
 
             # Read post content
@@ -252,11 +313,19 @@ class CloudDaemon:
                         }
                 elif platform in ['twitter', 'linkedin', 'pinterest', 'threads']:
                     # These platforms support direct image upload
+                    # Check for Twitter premium (single long post, no thread splitting)
+                    extra_kwargs = {}
+                    if platform == 'twitter':
+                        project = get_current_project()
+                        if project and project.platforms:
+                            twitter_cfg = project.platforms.get('twitter')
+                            if twitter_cfg and getattr(twitter_cfg, 'premium', False):
+                                extra_kwargs['as_thread'] = False
                     if local_image_paths:
-                        result = publisher.publish(post_content, media_paths=local_image_paths)
+                        result = publisher.publish(post_content, media_paths=local_image_paths, **extra_kwargs)
                     else:
                         # Publish without images (text only)
-                        result = publisher.publish(post_content)
+                        result = publisher.publish(post_content, **extra_kwargs)
                 else:
                     # Other platforms (reddit, substack, etc.) - text only for now
                     result = publisher.publish(post_content)
@@ -267,6 +336,7 @@ class CloudDaemon:
                     published += 1
                     self._stats['posts_published'] += 1
                     self._stats['last_publish'] = now.isoformat()
+                    self._recent_publishes.append(datetime.now(self.timezone))
 
                     await self.notifier.notify_published(
                         platform,
@@ -382,21 +452,34 @@ class CloudDaemon:
 
         # Last resort: use content after first --- but before ## Image Prompt
         # LinkedIn supports up to 3000 chars; other platforms use 1000
+        #
+        # BUG-FIX: the previous version did `content.split("---")` then took
+        # `parts[1]`, which silently dropped everything past the SECOND `---`.
+        # PostAll-generated LinkedIn markdown has multiple `---` as section
+        # separators inside the body, so this fallback was publishing only the
+        # hook section. Two corrections:
+        #   1) split only ONCE so `parts[1]` = everything after the first `---`
+        #   2) strip standalone `---` lines inside the body during the clean loop
         char_limit = 3000 if platform == 'linkedin' else 1000
-        parts = content.split("---")
+        parts = content.split("---", 1)
         if len(parts) > 1:
-            # Get content after first ---, but before ## Image Prompt
+            # Get content after first ---, but before ## / ### Image Prompt
             text = parts[1]
-            if '## Image Prompt' in text:
-                text = text.split('## Image Prompt')[0]
+            # Check ### first because '## Image Prompt' is a substring of
+            # '### Image Prompt' — splitting on the shorter one leaves a stray '#'.
             if '### Image Prompt' in text:
                 text = text.split('### Image Prompt')[0]
-            
+            if '## Image Prompt' in text:
+                text = text.split('## Image Prompt')[0]
+
             # Strip metadata lines that shouldn't appear in published content
             lines = text.strip().split('\n')
             clean_lines = []
             for line in lines:
                 stripped = line.strip()
+                # Drop standalone `---` lines used as visual section separators
+                if stripped == '---':
+                    continue
                 # Skip markdown headers (## Monday Post, etc.)
                 if stripped.startswith('## '):
                     continue
@@ -409,10 +492,16 @@ class CloudDaemon:
                     continue
                 if stripped.startswith('**Theme:**'):
                     continue
+                if stripped.startswith('**Day:**'):
+                    continue
+                if stripped.startswith('**Generated:**'):
+                    continue
                 clean_lines.append(line)
-            
+
             text = '\n'.join(clean_lines).strip()
-            
+            # Collapse 3+ blank lines to 2 (in case `---` removals left gaps)
+            text = re.sub(r'\n{3,}', '\n\n', text)
+
             # For Twitter threads: remove thread numbering (1/, 2/, etc.)
             # The publisher adds its own numbering format
             if platform == 'twitter':
@@ -426,7 +515,7 @@ class CloudDaemon:
                         clean_parts.append(part)
                 if clean_parts:
                     text = '\n\n'.join(clean_parts)
-            
+
             return text.strip()[:char_limit]
 
         return content[:char_limit]
@@ -522,7 +611,15 @@ class CloudDaemon:
         return local_image_paths
 
     async def _import_new_schedules(self):
-        """Import any new schedule.json files to database."""
+        """Import any new schedule.json files to database.
+
+        Re-runs import on every cycle so post-batch additions to schedule.json
+        (e.g. a manual LinkedIn re-generation that updated the file after the
+        daemon already imported it once) get picked up. Safe because
+        add_scheduled_post uses INSERT OR IGNORE on the
+        (week_folder, platform, post_path) UNIQUE key — already-imported rows
+        keep their published_at / status / retry_count untouched.
+        """
         if not OUTPUT_DIR.exists():
             return
 
@@ -533,21 +630,32 @@ class CloudDaemon:
             if folder.is_dir() and week_pattern.match(folder.name):
                 schedule_file = folder / "schedule.json"
                 if schedule_file.exists():
-                    # Check if this specific week folder has already been imported
+                    # Track existing count to detect newly-added entries.
                     try:
                         with self.db._get_connection() as conn:
                             cursor = conn.execute(
                                 "SELECT COUNT(*) FROM scheduled_posts WHERE week_folder = ?",
                                 (folder.name,)
                             )
-                            existing_count = cursor.fetchone()[0]
+                            before = cursor.fetchone()[0]
                     except Exception:
-                        existing_count = 0
+                        before = 0
 
-                    if existing_count == 0:
-                        imported = self.db.import_from_json_schedule(folder)
-                        if imported > 0:
-                            console.print(f"[cyan]Imported {imported} posts from {folder.name}[/cyan]")
+                    self.db.import_from_json_schedule(folder)
+
+                    try:
+                        with self.db._get_connection() as conn:
+                            cursor = conn.execute(
+                                "SELECT COUNT(*) FROM scheduled_posts WHERE week_folder = ?",
+                                (folder.name,)
+                            )
+                            after = cursor.fetchone()[0]
+                    except Exception:
+                        after = before
+
+                    new_rows = after - before
+                    if new_rows > 0:
+                        console.print(f"[cyan]Imported {new_rows} new post(s) from {folder.name}[/cyan]")
 
     async def _heartbeat(self):
         """Periodic heartbeat log."""
@@ -575,6 +683,14 @@ class CloudDaemon:
     # ==========================================
     # CONTENT GENERATION METHODS
     # ==========================================
+
+    async def _generation_reminder_1(self):
+        """Wrapper for APScheduler — reminder 1."""
+        await self._generation_reminder(reminder_num=1)
+
+    async def _generation_reminder_2(self):
+        """Wrapper for APScheduler — reminder 2."""
+        await self._generation_reminder(reminder_num=2)
 
     async def _generation_reminder(self, reminder_num: int = 1):
         """
@@ -901,6 +1017,13 @@ class CloudDaemon:
             f"[dim]Check interval: {self.check_interval} minutes[/dim]"
         ))
 
+        # Crash recovery (BUG-FIX 2026-05-11): any 'publishing' rows mean a
+        # previous daemon was killed mid-publish. Mark them 'failed' so they
+        # don't silently re-fire on next due-check.
+        stale_claims = self.db._reset_orphaned_claims_on_startup()
+        if stale_claims:
+            console.print(f"[yellow]Reset {stale_claims} orphaned 'publishing' claim(s) to 'failed' (likely killed mid-publish on prev start)[/yellow]")
+
         console.print(f"\n[cyan]Configuration:[/cyan]")
         console.print(f"  Timezone: {TIMEZONE}")
         console.print(f"  Database: {self.db.db_path}")
@@ -955,7 +1078,7 @@ class CloudDaemon:
         # Add heartbeat job (every 30 minutes)
         self.scheduler.add_job(
             self._heartbeat,
-            CronTrigger(minute='0,30'),
+            CronTrigger(minute='0,30', timezone=TIMEZONE),
             id='heartbeat',
             name='Heartbeat',
             replace_existing=True
@@ -966,7 +1089,7 @@ class CloudDaemon:
         hour, minute = map(int, daily_summary_time.split(':'))
         self.scheduler.add_job(
             self._daily_summary,
-            CronTrigger(hour=hour, minute=minute),
+            CronTrigger(hour=hour, minute=minute, timezone=TIMEZONE),
             id='daily_summary',
             name='Daily Summary',
             replace_existing=True
@@ -982,8 +1105,8 @@ class CloudDaemon:
             r1_day = DAY_TO_CRON.get(REMINDER_1_DAY, 4)  # Default to Friday
 
             self.scheduler.add_job(
-                lambda: asyncio.create_task(self._generation_reminder(reminder_num=1)),
-                CronTrigger(day_of_week=r1_day, hour=r1_hour, minute=r1_minute),
+                self._generation_reminder_1,
+                CronTrigger(day_of_week=r1_day, hour=r1_hour, minute=r1_minute, timezone=TIMEZONE),
                 id='generation_reminder_1',
                 name='Content Generation Reminder 1 (Day Before)',
                 replace_existing=True
@@ -994,8 +1117,8 @@ class CloudDaemon:
             r2_day = DAY_TO_CRON.get(REMINDER_2_DAY, 5)  # Default to Saturday
 
             self.scheduler.add_job(
-                lambda: asyncio.create_task(self._generation_reminder(reminder_num=2)),
-                CronTrigger(day_of_week=r2_day, hour=r2_hour, minute=r2_minute),
+                self._generation_reminder_2,
+                CronTrigger(day_of_week=r2_day, hour=r2_hour, minute=r2_minute, timezone=TIMEZONE),
                 id='generation_reminder_2',
                 name='Content Generation Reminder 2 (Same Day)',
                 replace_existing=True
@@ -1004,13 +1127,13 @@ class CloudDaemon:
             # Add generation job (e.g., Saturday 12:00)
             self.scheduler.add_job(
                 self._weekly_content_generation,
-                CronTrigger(day_of_week=gen_day, hour=gen_hour, minute=gen_minute),
+                CronTrigger(day_of_week=gen_day, hour=gen_hour, minute=gen_minute, timezone=TIMEZONE),
                 id='weekly_generation',
                 name='Weekly Content Generation',
                 replace_existing=True
             )
 
-            console.print(f"\n[cyan]Content Generation Schedule:[/cyan]")
+            console.print(f"\n[cyan]Content Generation Schedule ({TIMEZONE}):[/cyan]")
             console.print(f"  Reminder 1: {REMINDER_1_DAY.capitalize()} {REMINDER_1_TIME}")
             console.print(f"  Reminder 2: {REMINDER_2_DAY.capitalize()} {REMINDER_2_TIME}")
             console.print(f"  Generation: {GENERATION_DAY.capitalize()} {GENERATION_TIME}")
