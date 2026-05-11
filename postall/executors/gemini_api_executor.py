@@ -3,10 +3,37 @@ Gemini API Executor (Fallback 2)
 Uses Google Gemini API when both Claude options fail
 """
 
+import time
 from pathlib import Path
 from typing import Dict, Any
 
 from postall.config import GEMINI_API_KEY, get_brand_name, get_brand_style
+
+
+# Retry settings for 429 rate limit errors
+MAX_RETRIES = 5
+RETRY_WAIT_SECONDS = 61  # Wait a full rate-limit window before retrying
+
+
+def _call_gemini_with_retry(model, prompt_or_content, max_retries=MAX_RETRIES):
+    """Call model.generate_content with automatic retry on 429 rate limit.
+
+    Waits 61 seconds on 429 to ensure a fresh rate-limit window.
+    """
+    last_error = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = model.generate_content(prompt_or_content)
+            return response
+        except Exception as e:
+            last_error = e
+            if "429" in str(e) and attempt < max_retries:
+                print(f"[Gemini] 429 rate limit hit (attempt {attempt}/{max_retries}), "
+                      f"waiting {RETRY_WAIT_SECONDS}s...")
+                time.sleep(RETRY_WAIT_SECONDS)
+            else:
+                raise
+    raise last_error
 
 
 def execute_with_gemini_api(prompt: str, output_path: Path, platform_key: str, language: str = "") -> Dict[str, Any]:
@@ -39,7 +66,7 @@ def execute_with_gemini_api(prompt: str, output_path: Path, platform_key: str, l
         genai.configure(api_key=GEMINI_API_KEY)
 
         # Use Gemini Pro for text generation
-        model = genai.GenerativeModel('gemini-1.5-pro')
+        model = genai.GenerativeModel('gemini-2.0-flash')
 
         # Build full prompt with instructions using dynamic brand info
         brand_name = get_brand_name()
@@ -64,8 +91,8 @@ TASK:
 {prompt}
 """
 
-        # Generate content
-        response = model.generate_content(full_prompt)
+        # Generate content with retry on 429
+        response = _call_gemini_with_retry(model, full_prompt)
 
         # Extract content (keep image prompts in the file — image generator needs them)
         content = response.text
@@ -89,7 +116,7 @@ TASK:
             "success": True,
             "output": content,
             "file_path": str(content_file),
-            "model": "gemini-1.5-pro"
+            "model": "gemini-2.0-flash"
         }
 
     except ImportError:
@@ -124,9 +151,9 @@ def execute_review_with_gemini(prompt: str) -> str:
         import google.generativeai as genai
 
         genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.0-flash')
 
-        response = model.generate_content(prompt)
+        response = _call_gemini_with_retry(model, prompt)
         return response.text
 
     except Exception:

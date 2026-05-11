@@ -70,6 +70,38 @@ class ReviewCriteria:
 
 
 @dataclass
+class ReviewIssue:
+    """A specific issue found during review with actionable fix."""
+    dimension: str           # Which scoring dimension this affects
+    deduction: float         # Points deducted (negative, e.g., -0.5)
+    location: str            # Where in the content (e.g., "第2段", "开头第1句")
+    problem: str             # What's wrong
+    original_text: str       # The problematic text snippet
+    suggestion: str          # Specific fix suggestion
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "dimension": self.dimension,
+            "deduction": self.deduction,
+            "location": self.location,
+            "problem": self.problem,
+            "original_text": self.original_text,
+            "suggestion": self.suggestion
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ReviewIssue':
+        return cls(
+            dimension=data.get("dimension", ""),
+            deduction=data.get("deduction", 0),
+            location=data.get("location", ""),
+            problem=data.get("problem", ""),
+            original_text=data.get("original_text", ""),
+            suggestion=data.get("suggestion", "")
+        )
+
+
+@dataclass
 class ReviewResult:
     """Result of a single post review."""
     post_path: str
@@ -78,6 +110,7 @@ class ReviewResult:
     score: float
     criteria_scores: ReviewCriteria
     feedback: str
+    issues: List[ReviewIssue] = field(default_factory=list)  # NEW: specific issues with fixes
     revision_notes: Optional[str] = None
     human_question: Optional[str] = None
     reviewed_at: str = field(default_factory=lambda: datetime.now(ZoneInfo(TIMEZONE)).isoformat())
@@ -90,6 +123,7 @@ class ReviewResult:
             "score": self.score,
             "criteria_scores": self.criteria_scores.to_dict(),
             "feedback": self.feedback,
+            "issues": [i.to_dict() for i in self.issues],
             "revision_notes": self.revision_notes,
             "human_question": self.human_question,
             "reviewed_at": self.reviewed_at
@@ -343,6 +377,14 @@ class ContentDirector:
         # Parse criteria scores
         criteria = ReviewCriteria.from_dict(review_response.get("criteria_scores", {}))
 
+        # Parse issues (NEW)
+        issues = []
+        for issue_data in review_response.get("issues", []):
+            try:
+                issues.append(ReviewIssue.from_dict(issue_data))
+            except Exception:
+                pass
+
         # Calculate composite score (0-10 scale)
         composite_score = self._calculate_composite_score(criteria)
 
@@ -356,6 +398,7 @@ class ContentDirector:
             score=composite_score,
             criteria_scores=criteria,
             feedback=review_response.get("feedback", ""),
+            issues=issues,
             revision_notes=review_response.get("revision_notes"),
             human_question=review_response.get("human_question")
         )
@@ -427,6 +470,7 @@ Score each from 0.0 to 1.0:
 
 ## Important
 - Score factual_accuracy and truth_score LOW (0.3 or below) ONLY if the post contains obviously fabricated statistics, impossible numbers, or claims that contradict well-known facts. Do NOT penalize specific claims that are plausible but that you cannot independently verify — assume the content creator has access to the source material. Focus on internal consistency and plausibility, not verifiability
+- FABRICATED TESTIMONIALS CHECK: If the post presents a customer/user story (e.g. named characters like 小李/小王, "收到私信/留言", direct quotes from supposed users), check whether the post references attached source material (screenshots, DM images, verified interactions). If NO source material is referenced, score truth_score 0.0 and flag as REJECT — the story is fabricated. If the post explicitly references attached screenshots or verifiable source material, score truth_score normally — the content is backed by evidence.
 - Score relevance_score based on how well the topic matches what the target audience cares about RIGHT NOW
 - Score strategic_score based on whether the post drives meaningful engagement or channel growth
 - Score geo_score based on: (a) Does it target a specific problem/question users search for? (b) Is value front-loaded in first 2-3 sentences? (c) Contains AI-extractable insights (can be embedded in natural prose — does NOT require bullet lists)? (d) Includes named methods/brands for citation? (e) Question-based or problem-based title?
@@ -440,6 +484,15 @@ Platform: {platform}
 ```
 
 ## Output Format (JSON only)
+
+For each issue found, provide:
+- dimension: which scoring dimension it affects
+- deduction: points to deduct (negative number, e.g., -0.3)
+- location: where in the content (e.g., "第2段", "开头", "标题")
+- problem: what's wrong (brief description)
+- original_text: the exact problematic text (quote it)
+- suggestion: the specific replacement text or fix
+
 ```json
 {{
     "criteria_scores": {{
@@ -454,11 +507,32 @@ Platform: {platform}
         "strategic_score": 0.0-1.0,
         "geo_score": 0.0-1.0
     }},
+    "issues": [
+        {{
+            "dimension": "factual_accuracy",
+            "deduction": -0.3,
+            "location": "第2段",
+            "problem": "数据来源未标注",
+            "original_text": "全球AI数据中心耗电量排世界第四",
+            "suggestion": "据BloombergNEF数据，全球AI数据中心耗电量已跻身全球第四"
+        }},
+        {{
+            "dimension": "risk_level",
+            "deduction": -0.2,
+            "location": "第3段",
+            "problem": "绝对化表述可能引发争议",
+            "original_text": "苹果刀口向内",
+            "suggestion": "连苹果这类成本管控标杆，也面临上游压力"
+        }}
+    ],
     "feedback": "Brief overall assessment",
-    "revision_notes": "Specific changes needed (or null if none)",
+    "verdict": "可发布" | "需修改后发布" | "建议人工复核",
+    "revision_notes": "Overall revision guidance (or null if none)",
     "human_question": "Question for human if uncertain (or null)"
 }}
 ```
+
+CRITICAL: The "issues" array is the most important output. For each deduction from the perfect score, there MUST be a corresponding issue entry explaining WHY and HOW to fix it.
 
 Output ONLY the JSON, no other text."""
 
@@ -471,6 +545,9 @@ Output ONLY the JSON, no other text."""
                 data = json.loads(json_match.group())
                 # Validate required fields
                 if "criteria_scores" in data:
+                    # Ensure issues is a list
+                    if "issues" not in data:
+                        data["issues"] = []
                     return data
             except json.JSONDecodeError:
                 pass
@@ -482,6 +559,7 @@ Output ONLY the JSON, no other text."""
             open_brackets = raw.count('[') - raw.count(']')
             if open_braces > 0 or open_brackets > 0:
                 repaired = raw
+                # Strip trailing incomplete key-value pairs
                 repaired = re.sub(r',\s*"[^"]*":\s*"?[^"}\]]*$', '', repaired)
                 repaired += ']' * open_brackets + '}' * open_braces
                 try:
@@ -589,6 +667,7 @@ Output ONLY the JSON, no other text."""
 
         return {
             "criteria_scores": scores,
+            "issues": [],  # Rule-based review doesn't generate detailed issues
             "feedback": feedback,
             "revision_notes": None if scores["risk_level"] < 0.5 else "Review flagged content for risk",
             "human_question": None
@@ -961,7 +1040,7 @@ Output ONLY the JSON, no other text."""
         return report
 
     def _generate_markdown_report(self, reviews: List[ReviewResult], output_path: Path):
-        """Generate a human-readable markdown report."""
+        """Generate a human-readable markdown report with detailed issues."""
         report_lines = [
             "# Content Director Review Report",
             f"\n**Generated:** {datetime.now(self.timezone).strftime('%Y-%m-%d %H:%M:%S %Z')}",
@@ -1000,16 +1079,33 @@ Output ONLY the JSON, no other text."""
         for platform, platform_reviews in by_platform.items():
             report_lines.append(f"### {platform.title()}")
             report_lines.append("")
-            report_lines.append("| Post | Score | Decision | Feedback |")
-            report_lines.append("|------|-------|----------|----------|")
 
             for r in platform_reviews:
-                post_name = Path(r.post_path).name[:30]
+                post_name = Path(r.post_path).name
                 decision_icon = {"approve": "✅", "approve_with_notes": "📝", "revise": "🔄", "escalate": "⚠️", "reject": "❌"}.get(r.decision.value, "•")
-                feedback_short = r.feedback[:50] + "..." if len(r.feedback) > 50 else r.feedback
-                report_lines.append(f"| {post_name} | {r.score:.1f} | {decision_icon} | {feedback_short} |")
-
-            report_lines.append("")
+                
+                report_lines.extend([
+                    f"#### {decision_icon} {post_name}",
+                    f"- **Score:** {r.score:.1f}/10",
+                    f"- **Decision:** {r.decision.value.replace('_', ' ').title()}",
+                    f"- **Feedback:** {r.feedback}",
+                    ""
+                ])
+                
+                # Show issues with specific fixes (NEW)
+                if r.issues:
+                    report_lines.append("**扣分项 & 修改建议:**")
+                    report_lines.append("")
+                    for issue in r.issues:
+                        report_lines.extend([
+                            f"- **【扣{abs(issue.deduction):.1f}分】{issue.problem}** ({issue.dimension})",
+                            f"  - 📍 位置: {issue.location}",
+                            f"  - ❌ 原文: \"{issue.original_text}\"",
+                            f"  - ✅ 建议: \"{issue.suggestion}\"",
+                            ""
+                        ])
+                
+                report_lines.append("")
 
         # Escalations section
         escalations = [r for r in reviews if r.decision == ContentDecision.ESCALATE_TO_HUMAN]
@@ -1027,6 +1123,13 @@ Output ONLY the JSON, no other text."""
                     f"- **Question:** {e.human_question or 'N/A'}",
                     ""
                 ])
+                
+                # Show issues for escalated posts too
+                if e.issues:
+                    report_lines.append("**Issues:**")
+                    for issue in e.issues:
+                        report_lines.append(f"- 【{issue.dimension}】{issue.problem}: \"{issue.original_text}\" → \"{issue.suggestion}\"")
+                    report_lines.append("")
 
         report_lines.extend([
             "---",
