@@ -32,6 +32,13 @@ from postall.config import (
     get_platform_language
 )
 
+# Timeliness context for up-to-date content (2026-03-23)
+try:
+    from postall.utils.timeliness_context import refresh_timeliness_context, get_context_for_prompt
+    TIMELINESS_AVAILABLE = True
+except ImportError:
+    TIMELINESS_AVAILABLE = False
+
 
 class GenerationController:
     """
@@ -97,8 +104,11 @@ class GenerationController:
             result['missing_platforms'] = self.all_platforms.copy()
             return result
 
-        # Check each platform
+        # Check each enabled platform (skip disabled ones)
         for platform_key, platform_info in get_platforms().items():
+            if not platform_info.get('enabled', False):
+                continue
+
             folder_name = platform_info.get('output_folder', platform_key)
             platform_path = week_path / folder_name
 
@@ -166,6 +176,32 @@ class GenerationController:
 
         start_time = datetime.now(self.timezone)
 
+        # Phase 0: Smart update timeliness context (2026-03-23)
+        # Auto-apply obvious changes, flag controversial ones for Mark
+        if TIMELINESS_AVAILABLE:
+            try:
+                print("[GenerationController] Smart updating timeliness context...")
+                from postall.utils.timeliness_context import smart_update_context, format_update_notification
+                
+                update_result = smart_update_context()
+                result['timeliness_update'] = update_result
+                
+                # Log what was updated
+                if update_result.get("auto_applied"):
+                    print(f"[GenerationController] Auto-applied: {update_result['auto_applied']}")
+                
+                if update_result.get("needs_confirmation"):
+                    print(f"[GenerationController] Needs confirmation: {update_result['needs_confirmation']}")
+                    # The notification will be sent by the daemon/telegram bot
+                    result['timeliness_needs_confirmation'] = True
+                
+                # Now do full refresh
+                refresh_timeliness_context()
+                result['timeliness_refreshed'] = True
+            except Exception as e:
+                print(f"[GenerationController] Timeliness update failed (non-critical): {e}")
+                result['timeliness_refreshed'] = False
+        
         # Check current status
         status = self.check_content_status()
         result['week_folder'] = status['week_folder']
@@ -460,10 +496,19 @@ class GenerationController:
 
             # Platform constraints
             if platform == 'twitter':
-                platform_constraint = (
-                    "Twitter/X Thread Mode: Generate LONG-FORM content (600-2000 characters). "
-                    "Write substantial, valuable content that will be split into a thread."
-                )
+                platform_language = get_platform_language(platform)
+                if platform_language == "zh":
+                    platform_constraint = (
+                        "Twitter/X Thread Mode: Generate LONG-FORM content (600-2000 characters). "
+                        "Write substantial, valuable content that will be split into a thread. "
+                        "Write ALL content in Chinese (中文)."
+                    )
+                else:
+                    platform_constraint = (
+                        "Twitter/X: Write as a SINGLE continuous paragraph (no line breaks, no bullet points). "
+                        "Premium account — no character limit. Aim for 600-2000 characters. "
+                        "Do NOT split into thread format. Write ALL content in English."
+                    )
             else:
                 max_len = platform_info.get('max_length', platform_info.get('max_caption_length', 2000))
                 platform_constraint = f"Max length: {max_len} characters."
@@ -588,7 +633,7 @@ Output format — write ONLY the improved post content in markdown:
 
                 response = await asyncio.to_thread(
                     lambda: client.messages.create(
-                        model="claude-sonnet-4-20250514",
+                        model="claude-sonnet-4-6",
                         max_tokens=4096,
                         system=system_msg,
                         messages=[{"role": "user", "content": prompt}]
@@ -605,12 +650,13 @@ Output format — write ONLY the improved post content in markdown:
             try:
                 import google.generativeai as genai
                 from postall.config import GEMINI_API_KEY
+                from postall.executors.gemini_api_executor import _call_gemini_with_retry
 
                 genai.configure(api_key=GEMINI_API_KEY)
                 model = genai.GenerativeModel("gemini-2.0-flash")
 
                 response = await asyncio.to_thread(
-                    lambda: model.generate_content(prompt)
+                    lambda: _call_gemini_with_retry(model, prompt)
                 )
 
                 if response and response.text:
@@ -742,17 +788,8 @@ Output format — write ONLY the improved post content in markdown:
             brand_website = get_brand_website()
             content_pillars = get_content_pillars()
 
-            # Get social links for CTA
-            from postall.config import get_social_links_text
-            social_links_text = get_social_links_text(platform)
-            if social_links_text:
-                cta_instruction = (
-                    "\nCTA (Call-to-Action) Links - include at the end of each post:\n"
-                    + social_links_text + "\n"
-                    + "- Naturally weave these links into the closing CTA of each post. Vary the CTA phrasing across posts.\n"
-                )
-            else:
-                cta_instruction = ""
+            # CTA links disabled — no external links in generated content
+            cta_instruction = "\n- Do NOT include any CTA links, URLs, or external links in the generated content. No exceptions.\n"
 
             # Get platform language
             platform_language = get_platform_language(platform)
@@ -786,33 +823,40 @@ Output format — write ONLY the improved post content in markdown:
 - Each tweet in the thread MUST be under 280 characters (Chinese characters count as 1)
 - Clearly mark each tweet with 1/, 2/, 3/ numbering
 - First tweet must be a strong hook that grabs attention
-- Last tweet should include CTA
+- Last tweet should end with an engaging thought or question (NO links)
 - Write ALL content in Chinese (中文). Do NOT mix languages.
 - Use natural, conversational Chinese — not translated-from-English Chinese"""
                 else:
-                    platform_constraint = """- Twitter/X: Each post is a THREAD of 3-6 tweets
-- Each tweet in the thread MUST be under 280 characters
-- Clearly mark each tweet with 1/, 2/, 3/ numbering
-- First tweet must be a strong hook that grabs attention
-- Last tweet should include CTA
+                    platform_constraint = """- Twitter/X: Write as a SINGLE continuous paragraph (no line breaks, no bullet points, no numbered lists)
+- Premium account — no character limit. Aim for 600-2000 characters of substantive content
+- Do NOT split into thread format. Do NOT use 1/, 2/, 3/ numbering
+- Open with a strong hook that grabs attention
+- Write in a natural, conversational English voice — like a real person sharing a thought
 - Write ALL content in English. Do NOT mix languages."""
             elif platform == 'linkedin':
                 platform_constraint = """- LinkedIn: Professional long-form posts (800-1500 characters)
 - Write in a professional but authentic voice — share real experiences and insights
 - Use line breaks for readability (LinkedIn rewards whitespace)
 - Include a strong opening hook (first 2 lines are visible before "see more")
-- End with a clear CTA or engagement question
+- End with an engagement question (NOT a link or CTA)
 - Do NOT fabricate statistics or unverifiable data — use personal observations instead"""
+            elif platform == 'wechat':
+                platform_constraint = """- WeChat公众号: Long-form article format (800-2000 characters)
+- Write ALL content in Chinese (中文)
+- Use engaging, conversational Chinese suitable for WeChat readers
+- Structure with clear sections and visual breaks
+- Include a compelling title (will be extracted from first heading)
+- Do NOT fabricate statistics or unverifiable data"""
             elif platform == 'instagram':
                 platform_constraint = """- Instagram: Visual-first carousel posts + single image posts
 - Caption: 150-250 words, optimized for engagement
-- Caption Formula: [Hook - 1 sentence that stops scrolling] → [Problem/insight] → [Value/solution] → [Personal story 2-3 sentences] → [CTA]
+- Caption Formula: [Hook - 1 sentence that stops scrolling] → [Problem/insight] → [Value/solution] → [Personal story 2-3 sentences] → [Engagement question]
 - Hashtags: 5-10 relevant hashtags, placed AFTER caption separated by dots
 - Carousel Structure (7-10 slides):
   * Slide 1: Bold hook statement or question
   * Slides 2-7: One clear point per slide, scannable text
   * Slide 8-9: Summary or transformation
-  * Slide 10: CTA (link in bio / follow for more)
+  * Slide 10: Engagement question or takeaway (NO link CTA)
 - Content Mix per week:
   * 1-2 Educational carousels (tips, how-to, insights)
   * 1 Inspirational/quote post
@@ -833,7 +877,7 @@ Output format per post:
 **Slide 1:** [hook text]
 **Slide 2:** [point 1]
 ...
-**Slide N:** [CTA]
+**Slide N:** [takeaway or question]
 
 ### Image Prompt
 [image generation instructions per slide or single image]"""
@@ -842,15 +886,23 @@ Output format per post:
 - Write 300-800 words per post, helpful and informative tone
 - NEVER be promotional — Reddit communities hate self-promotion
 - Share genuine insights, tips, or experiences that happen to relate to the brand's domain
-- Mention the product/tool only if it naturally fits (max 1 brief mention per post)
+- Do NOT include any product links or CTA links
 - Include the target subreddit in the post header
-- Structure: Hook title → Problem/context → Detailed advice/insight → Subtle CTA if appropriate
+- Structure: Hook title → Problem/context → Detailed advice/insight → Closing thought
 - Write 1-2 posts per week targeting different subreddits
 - Each post should stand alone as genuinely helpful content
 - Do NOT fabricate statistics or unverifiable data"""
             else:
                 max_len = platform_info.get('max_length', platform_info.get('max_caption_length', 'N/A'))
                 platform_constraint = f"- Platform constraints: max length {max_len} characters"
+
+            # Get timeliness context (2026-03-23)
+            timeliness_context = ""
+            if TIMELINESS_AVAILABLE:
+                try:
+                    timeliness_context = get_context_for_prompt()
+                except Exception as e:
+                    print(f"[GenerationController] Timeliness context failed: {e}")
 
             prompt = f"""Generate a week's worth of {platform_name} content for {brand_name}.
 
@@ -859,6 +911,8 @@ Brand Info:
   - Style/Voice: {brand_style}
   - Tagline: {brand_tagline}
   - Website: {brand_website}
+
+{timeliness_context}
 
 Content Pillars (distribution targets):
 {pillars_text}
@@ -869,6 +923,10 @@ Week Folder: {week_folder}
 CRITICAL RULES:
 - Do NOT invent or fabricate statistics, research findings, or data points (e.g. "studies show 73% of developers..." or "saves 86 hours per month")
 - Do NOT reference any specific product by name as a promotion (this is a creator channel, not a product page)
+- Do NOT write fictional customer stories, testimonials, or user anecdotes presented as real events
+- Do NOT create named fictional characters (小李, 小王, 小张, etc.) and present their experiences as real
+- Do NOT fabricate receiving DMs, private messages, comments, or feedback from users/fans (e.g. "收到一位粉丝的私信", "收到一条留言")
+- If sharing a user story, it MUST be based on real, verifiable interactions — never invented
 - Use only personal experiences, observations, and commonly known facts
 - Instead of fake numbers, use qualitative descriptions (e.g. "significantly faster", "most developers I know", "in my experience")
 - Keep content authentic — write as a real developer sharing genuine insights
@@ -895,7 +953,7 @@ Requirements:
   * Textured feel: hand-lettering, stamp prints, paper-cut art, or ink brush strokes
   * Minimalist composition with flat hand-drawn icons if needed
   * Should feel human-made and artistic, anti-AI aesthetic
-  * If including text/branding in the image, use the EXACT brand name "YOUR_BRAND_NAME" — NEVER use "Your Brand" or generic placeholders
+  * If including text/branding in the image, use the EXACT brand name "Mark Zhou" — NEVER use "Your Brand" or generic placeholders
   * Keep image prompt simple and topic-focused — describe the visual scene, not marketing copy
 - Use the content pillar distribution as a guide for topic selection
 {platform_constraint}{lang_instruction}

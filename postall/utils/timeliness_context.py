@@ -99,66 +99,93 @@ def extract_hn_headlines(html: str) -> List[str]:
     headlines = []
     pattern = r'class="titleline"[^>]*>.*?<a[^>]*>([^<]+)</a>'
     matches = re.findall(pattern, html, re.DOTALL)
-    return matches[:30]
+    for match in matches[:20]:
+        headline = match.strip()
+        if headline and len(headline) > 10:
+            headlines.append(headline)
+    return headlines
 
 
-def detect_ai_tools_in_headlines(headlines: List[str]) -> List[str]:
-    """Find AI tools mentioned in headlines."""
-    found = []
+def extract_ai_tools_from_headlines(headlines: List[str]) -> List[str]:
+    """Extract AI tool names from headlines."""
+    found_tools = []
     for headline in headlines:
         headline_lower = headline.lower()
         for tool in KNOWN_AI_TOOLS:
             if tool in headline_lower:
                 # Capitalize properly
-                found.append(tool.title())
-    return list(set(found))
+                found_tools.append(tool.title())
+    return list(set(found_tools))
 
 
 def smart_update_context() -> Dict:
     """
-    Intelligently update the timeliness context.
-    - Auto-apply obvious additions (known tools appearing in HN)
-    - Flag uncertain changes for confirmation
+    Smart update: auto-apply obvious changes, flag controversial ones.
     
-    Returns update result dict.
+    Returns:
+        {
+            "auto_applied": [...],  # Changes applied automatically
+            "needs_confirmation": [...],  # Changes needing Mark's approval
+            "current_context": {...}
+        }
     """
     result = {
         "auto_applied": [],
         "needs_confirmation": [],
-        "unchanged": True
+        "current_context": None,
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
     
-    # Load current context
+    # Load current manual context
     manual = load_manual_context()
     current_tools = set(t.lower() for t in manual.get("current_hot_tools", []))
     
-    # Fetch HN headlines
+    print("[timeliness] Fetching latest data...")
+    
+    # Fetch from sources
+    new_tools_found = []
+    
+    # Fetch HN
     hn_html = fetch_url("https://news.ycombinator.com/")
-    if not hn_html:
-        return result
+    if hn_html:
+        headlines = extract_hn_headlines(hn_html)
+        ai_headlines = [h for h in headlines if any(kw in h.lower() for kw in 
+                       ['ai', 'gpt', 'claude', 'llm', 'agent', 'openai', 'anthropic', 'coding'])]
+        
+        # Extract tools from headlines
+        tools_in_news = extract_ai_tools_from_headlines(headlines)
+        for tool in tools_in_news:
+            if tool.lower() not in current_tools:
+                new_tools_found.append(tool)
     
-    headlines = extract_hn_headlines(hn_html)
-    found_tools = detect_ai_tools_in_headlines(headlines)
+    # Analyze changes
+    for tool in new_tools_found:
+        # Check if it's a well-known tool (auto-apply) or unknown (needs confirmation)
+        if tool.lower() in KNOWN_AI_TOOLS:
+            # Auto-apply: add to current_hot_tools
+            if tool not in manual["current_hot_tools"]:
+                manual["current_hot_tools"].append(tool)
+                result["auto_applied"].append(f"新增工具: {tool}")
+                print(f"[timeliness] Auto-added: {tool}")
+        else:
+            # Unknown tool, needs confirmation
+            result["needs_confirmation"].append({
+                "action": "add_tool",
+                "tool": tool,
+                "reason": "在 Hacker News 上被提及，但不在已知工具列表中"
+            })
     
-    # Check for new tools to add
-    for tool in found_tools:
-        if tool.lower() not in current_tools:
-            if tool.lower() in KNOWN_AI_TOOLS:
-                # Known tool, auto-add
-                manual.setdefault("current_hot_tools", []).append(tool)
-                result["auto_applied"].append(f"Added {tool} (found on HN)")
-                result["unchanged"] = False
-            else:
-                # Unknown tool, flag for confirmation
-                result["needs_confirmation"].append({
-                    "action": "add",
-                    "tool": tool,
-                    "reason": "Found in HN headlines but not in known tools list"
-                })
+    # Check for tools that might be outdated (not mentioned in news for a while)
+    # This is a controversial change, so always flag for confirmation
+    # (We don't auto-remove tools)
     
+    # Save if there were auto-applied changes
     if result["auto_applied"]:
+        manual["updated_by"] = "auto"
         save_manual_context(manual)
+        print(f"[timeliness] Saved {len(result['auto_applied'])} auto-applied changes")
     
+    result["current_context"] = manual
     return result
 
 
@@ -230,7 +257,7 @@ def get_context_for_prompt() -> str:
     ctx = get_timeliness_context()
     
     lines = [
-        "【时效性参考】",
+        "【时效性参考 - 2026年】",
         "",
         "当前热门 AI 开发工具（按热度排序）：",
     ]
@@ -239,7 +266,7 @@ def get_context_for_prompt() -> str:
         lines.append(f"  - {tool}")
     
     lines.append("")
-    lines.append("当前 AI 趋势：")
+    lines.append("2026年 AI 趋势：")
     for trend in ctx.get("current_trends", [])[:5]:
         lines.append(f"  - {trend}")
     
@@ -258,7 +285,7 @@ def get_context_for_prompt() -> str:
 
 
 def format_update_notification(update_result: Dict) -> str:
-    """Format update result as notification."""
+    """Format update result as Telegram notification."""
     lines = ["📋 **PostAll 时效性清单更新**", ""]
     
     if update_result.get("auto_applied"):
