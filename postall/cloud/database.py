@@ -141,11 +141,18 @@ class ScheduleDatabase:
         scheduled_at: datetime,
         content_preview: str = None
     ) -> int:
-        """Add a new scheduled post."""
+        """Add a new scheduled post.
+
+        Uses INSERT OR IGNORE so re-importing a schedule.json never clobbers
+        an already-imported row (which would wipe published_at / status /
+        retry_count of posts already in flight). New rows on the same
+        (week_folder, platform, post_path) UNIQUE key are silently ignored;
+        callers should treat duplicate inserts as a no-op.
+        """
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT OR REPLACE INTO scheduled_posts
+                INSERT OR IGNORE INTO scheduled_posts
                 (week_folder, platform, post_path, scheduled_at, content_preview, status)
                 VALUES (?, ?, ?, ?, ?, 'scheduled')
             """, (
@@ -157,9 +164,22 @@ class ScheduleDatabase:
             ))
             return cursor.lastrowid
 
+    # Sliding window for due-post selection. Anything scheduled MORE than this
+    # many hours in the past is considered abandoned (likely a daemon was down
+    # at the scheduled time, or status update failed). Such posts are NEVER
+    # auto-published — they would surprise users with a group-publish after
+    # any daemon restart.
+    DUE_WINDOW_HOURS = 12
+
     def get_due_posts(self) -> List[Dict[str, Any]]:
-        """Get all posts that are due for publishing."""
-        now = datetime.now(self.timezone).isoformat()
+        """Get all posts that are due for publishing within DUE_WINDOW_HOURS.
+
+        Posts scheduled in the past beyond the window are intentionally
+        excluded — they should be manually re-scheduled or marked expired.
+        """
+        now_dt = datetime.now(self.timezone)
+        now = now_dt.isoformat()
+        window_start = (now_dt - timedelta(hours=self.DUE_WINDOW_HOURS)).isoformat()
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -167,8 +187,9 @@ class ScheduleDatabase:
                 SELECT * FROM scheduled_posts
                 WHERE status = 'scheduled'
                 AND scheduled_at <= ?
+                AND scheduled_at >= ?
                 ORDER BY scheduled_at ASC
-            """, (now,))
+            """, (now, window_start))
 
             return [dict(row) for row in cursor.fetchall()]
 
@@ -188,6 +209,62 @@ class ScheduleDatabase:
             """, (now.isoformat(), cutoff))
 
             return [dict(row) for row in cursor.fetchall()]
+
+    def _reset_orphaned_claims_on_startup(self) -> int:
+        """Convert any 'publishing' rows (from crashed prev daemon) to 'failed'.
+
+        Called once on daemon startup. The publishing status is only ever set
+        right before a publisher.publish() call; if a row is still in this
+        state at startup, the previous daemon process was killed mid-publish
+        (SIGKILL, OOM, container restart, etc.). Marking them 'failed' rather
+        than 'scheduled' is the SAFE choice — it stops auto-retry which could
+        re-publish an already-published post.
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE scheduled_posts
+                SET status = 'failed',
+                    error = 'Daemon killed mid-publish; reset on startup. Manually inspect publish_history to see if it went through before crash.'
+                WHERE status = 'publishing'
+            """)
+            return cursor.rowcount
+
+    def claim_post_for_publishing(self, post_id: int) -> bool:
+        """Atomically transition a post from 'scheduled' to 'publishing'.
+
+        Returns True iff THIS caller successfully claimed the post (i.e., the
+        UPDATE affected exactly one row). If another concurrent caller already
+        claimed it (or the row was deleted / no longer 'scheduled'), returns
+        False — the caller MUST NOT publish.
+
+        This prevents double-publish during the brief overlap window when two
+        daemon instances or two loop iterations both observe the same 'due'
+        post (see 2026-05-11 incident).
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE scheduled_posts
+                SET status = 'publishing'
+                WHERE id = ? AND status = 'scheduled'
+            """, (post_id,))
+            return cursor.rowcount == 1
+
+    def unclaim_post(self, post_id: int) -> None:
+        """Revert a 'publishing' claim back to 'scheduled'.
+
+        Called when a claimed post fails BEFORE the publisher is invoked
+        (e.g., missing file, unconfigured platform). Don't use this after a
+        partial publish — use mark_failed instead so retry_count is tracked.
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE scheduled_posts
+                SET status = 'scheduled'
+                WHERE id = ? AND status = 'publishing'
+            """, (post_id,))
 
     def mark_published(
         self,
