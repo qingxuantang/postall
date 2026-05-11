@@ -96,13 +96,15 @@ AI arranges optimal timing and publishes automatically - no manual drag-and-drop
 ## ✨ Features
 
 - **🤖 AI Content Generation** - Powered by Claude, GPT-4, and Gemini
-- **🎯 Director Review System** - AI quality control checks brand alignment before publishing
+- **🎯 Director Review System** - AI quality control with **per-issue actionable fixes** (location + original text + suggested replacement, not just a score)
+- **📅 Timeliness Context** - Auto-detects when content references go stale and keeps generated content using current AI tooling vocabulary
 - **📱 Multi-Platform Publishing** - Twitter/X, LinkedIn, Instagram, Pinterest, Threads, Xiaohongshu
-- **🎨 Image Generation** - Auto-generate matching visuals with AI
+- **🎨 Image Generation** - Auto-generate matching visuals with AI (Gemini with retry/backoff)
 - **📊 Content Strategy** - Define pillars, themes, and maintain balanced content mix
 - **📈 RLHF Learning** - System improves from your feedback over time
 - **⏰ Smart Scheduling** - Optimal posting times per platform
 - **🔄 Daemon Mode** - Run continuously with auto-generation and publishing
+- **🛡️ Production Safety** - Rate limiting, atomic publish claims, crash recovery, and 12-hour sliding window prevent surprise group-publishes after daemon restarts
 
 ## 🚀 Quick Start
 
@@ -397,7 +399,52 @@ The Director is a second AI that reviews generated content for:
 - **Quality Standards** - Is it well-written and engaging?
 - **Platform Fit** - Is it optimized for the target platform?
 - **Factual Accuracy** - No fabricated statistics or claims
+- **Fabricated Testimonials** - Detects invented user stories (named characters, fake quotes) without source material and rejects them outright
 - **Compliance** - No problematic content
+
+#### Per-Issue Actionable Feedback
+
+For each deduction, the Director outputs a structured `ReviewIssue` with:
+
+- `dimension` — which scoring axis was hit
+- `deduction` — how many points lost
+- `location` — where in the content (e.g. "第2段", "opening line")
+- `original_text` — the exact problematic snippet
+- `suggestion` — the specific replacement text
+
+Example:
+```json
+{
+  "dimension": "factual_accuracy",
+  "deduction": -0.3,
+  "location": "第2段",
+  "original_text": "全球AI数据中心耗电量排世界第四",
+  "suggestion": "据BloombergNEF数据，全球AI数据中心耗电量已跻身全球第四"
+}
+```
+
+This turns review into a copy-paste editing workflow instead of a "go figure out what to fix" loop.
+
+### Timeliness Context
+
+Generated content can quickly age — references to "the new GPT-4 release" or "the latest from OpenAI" get stale fast. PostAll's timeliness module:
+
+- Maintains a curated list of currently-hot AI tools, current-year trends, and outdated references
+- On each generation cycle, fetches the Hacker News front page and auto-detects new tools mentioned
+- Known tools are auto-added to `current_hot_tools`; unknown ones flag for human confirmation
+- Injects the up-to-date list into generation prompts so produced content uses current tooling vocabulary
+
+### Production Safety (Daemon Mode)
+
+The publish daemon includes safeguards that matter the moment you run it on a real server:
+
+- **Rate limit** — caps at `PUBLISH_RATE_LIMIT` posts per `PUBLISH_RATE_WINDOW_HOURS` (defaults: 3 per 2h). A daemon restart that finds a large queue won't drain it in one burst (which social platforms flag as bot behavior)
+- **12-hour sliding window** — anything scheduled more than 12h in the past is considered abandoned and never auto-published; manually rescheduling is the explicit path
+- **Atomic publish claims** — `claim_post_for_publishing` atomically transitions `scheduled → publishing` before the publisher call; concurrent loop iterations or daemon instances can't both publish the same post
+- **Crash recovery on startup** — rows stuck in `publishing` from a SIGKILL / OOM are marked `failed` (not `scheduled`), preventing accidental re-publish on next restart
+- **Pre-filter unconfigured platforms** — don't waste rate-limit quota on platforms you haven't set up
+
+These are belt-and-suspenders: each one alone would help, but together they make daemon restarts safe even with a dirty queue.
 
 ### RLHF Learning
 
