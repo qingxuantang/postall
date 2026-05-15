@@ -399,8 +399,23 @@ class LinkedInPublisher:
         # Clean metadata before publishing
         content = clean_metadata(content, 'linkedin')
 
-        # Truncate content if needed
-        commentary = content[:self.COMMENTARY_MAX_LENGTH]
+        # Hard fail if content exceeds LinkedIn limit. Silent truncation has
+        # burned us before — the previous `content[:MAX]` slice published posts
+        # cut off mid-sentence with no indication of failure to the caller.
+        if len(content) > self.COMMENTARY_MAX_LENGTH:
+            return {
+                "success": False,
+                "error": (
+                    f"Content is {len(content)} chars, exceeds LinkedIn cap of "
+                    f"{self.COMMENTARY_MAX_LENGTH}. Refusing to publish a silently "
+                    f"truncated post. Shorten by at least "
+                    f"{len(content) - self.COMMENTARY_MAX_LENGTH} chars and retry."
+                ),
+                "length": len(content),
+                "max": self.COMMENTARY_MAX_LENGTH,
+            }
+
+        commentary = content
 
         # Build base payload
         payload = {
