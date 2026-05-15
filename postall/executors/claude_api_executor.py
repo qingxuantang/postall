@@ -297,17 +297,83 @@ or reuse their specific angles. Create original content with a fresh perspective
         }
 
 
+# Tool schema forces Claude to return well-formed JSON for content review.
+# Free-form JSON output was failing on Chinese WeChat content where inner ASCII
+# double quotes (e.g. "超长就 return error") inside string fields were not being
+# escaped, breaking json.loads downstream and dropping every review to the
+# default 6.5 fallback score. Tool use validates server-side.
+_REVIEW_TOOL_SCHEMA = {
+    "name": "submit_content_review",
+    "description": "Submit the structured content review with scores, issues, and verdict.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "criteria_scores": {
+                "type": "object",
+                "properties": {
+                    "brand_voice": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+                    "platform_fit": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+                    "quality_score": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+                    "engagement_potential": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+                    "risk_level": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+                    "factual_accuracy": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+                    "truth_score": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+                    "relevance_score": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+                    "strategic_score": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+                    "geo_score": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+                },
+                "required": [
+                    "brand_voice", "platform_fit", "quality_score",
+                    "engagement_potential", "risk_level", "factual_accuracy",
+                    "truth_score", "relevance_score", "strategic_score", "geo_score",
+                ],
+            },
+            "issues": {
+                "type": "array",
+                "description": "One entry per score deduction, explaining what + how to fix.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "dimension": {"type": "string"},
+                        "deduction": {"type": "number"},
+                        "location": {"type": "string"},
+                        "problem": {"type": "string"},
+                        "original_text": {"type": "string"},
+                        "suggestion": {"type": "string"},
+                    },
+                    "required": ["dimension", "problem", "suggestion"],
+                },
+            },
+            "feedback": {"type": "string", "description": "Brief overall assessment."},
+            "verdict": {
+                "type": "string",
+                "enum": ["可发布", "需修改后发布", "建议人工复核"],
+            },
+            "revision_notes": {"type": ["string", "null"]},
+            "human_question": {"type": ["string", "null"]},
+        },
+        "required": ["criteria_scores", "issues", "feedback"],
+    },
+}
+
+
 def execute_review_with_claude_api(prompt: str) -> str:
     """
     Execute a review request using Claude API.
 
-    Used by Content Director for reviewing generated content.
+    Uses Anthropic tool-use forced output so the JSON is validated server-side
+    against _REVIEW_TOOL_SCHEMA. This eliminates the recurring parser failures
+    seen on multi-language content where the model emitted unescaped inner
+    ASCII double quotes inside string fields, breaking json.loads and dropping
+    every review to the 6.5-default fallback score.
 
     Args:
         prompt: The review prompt with content to analyze
 
     Returns:
-        Raw response text from Claude
+        JSON string ready to be parsed by ContentDirector._parse_review_response.
+        Returns None on API failure so the Director can fall back to Gemini /
+        rule-based review.
     """
 
     if not ANTHROPIC_API_KEY:
@@ -315,18 +381,43 @@ def execute_review_with_claude_api(prompt: str) -> str:
 
     try:
         import anthropic
+        import json as _json
 
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
         message = client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=5000,
+            tools=[_REVIEW_TOOL_SCHEMA],
+            tool_choice={"type": "tool", "name": "submit_content_review"},
             messages=[
                 {"role": "user", "content": prompt}
-            ]
+            ],
         )
 
-        return message.content[0].text
+        # The tool_use block's .input is a Python dict already validated by Anthropic.
+        for block in message.content:
+            if getattr(block, "type", None) == "tool_use" and getattr(block, "name", None) == "submit_content_review":
+                tool_input = block.input
+                # Defensive post-process: Claude occasionally encodes a complex
+                # nested array as a JSON-encoded string instead of a native list
+                # (especially under tool_choice forced output). Re-parse here so
+                # downstream code always sees the expected structure.
+                for nested_array_key in ("issues",):
+                    val = tool_input.get(nested_array_key)
+                    if isinstance(val, str):
+                        try:
+                            tool_input[nested_array_key] = _json.loads(val)
+                        except (ValueError, TypeError):
+                            tool_input[nested_array_key] = []
+                return _json.dumps(tool_input, ensure_ascii=False)
+
+        # Fallback: model didn't call the tool (extremely rare with tool_choice forced).
+        # Return whatever text came back so the legacy parser can have a go.
+        for block in message.content:
+            if getattr(block, "type", None) == "text":
+                return block.text
+        return None
 
     except Exception:
         return None
