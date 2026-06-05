@@ -16,6 +16,7 @@ def retrieve_similar(
     language: Optional[str] = None,
     top_k: int = 3,
     min_score: float = 8.0,
+    current_topic_type: Optional[str] = None,
 ) -> str:
     """
     Retrieve similar high-scoring historical content.
@@ -26,6 +27,14 @@ def retrieve_similar(
         language: Filter by language (zh/en)
         top_k: Number of results to return
         min_score: Minimum director review score
+        current_topic_type: The topic_type of the topic CURRENTLY being
+            generated. When "normal" (the default for baseline posts), the
+            retrieval excludes documents tagged with any non-normal vertical
+            (e.g. "spotlight") so editorial verticals do not bleed into
+            baseline content. When the current topic is itself a non-normal
+            vertical, retrieval stays unfiltered so that vertical can learn
+            from both its own history and from baseline content. Legacy
+            index rows without a topic_type field pass through via $ne.
 
     Returns:
         Formatted context string for injection into system prompt,
@@ -56,6 +65,11 @@ def retrieve_similar(
             where_conditions.append({"platform": platform_filter})
     if language:
         where_conditions.append({"language": language})
+    # Vertical isolation: when generating a baseline (normal) topic, exclude
+    # entries tagged as a non-normal vertical. Legacy rows without a
+    # topic_type field pass through.
+    if current_topic_type == "normal":
+        where_conditions.append({"topic_type": {"$ne": "spotlight"}})
 
     where = None
     if len(where_conditions) == 1:

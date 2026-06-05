@@ -26,6 +26,49 @@ from postall.config import get_output_dir, get_project_root
 COLLECTION_NAME = "postall_content"
 
 
+def _load_project_topic_type_rules() -> list[dict]:
+    """Read rag.topic_type_rules from the active project's project.yaml.
+
+    Schema:
+        rag:
+          topic_type_rules:
+            - pattern: "michelin_w_*"   # fnmatch against topic_name
+              topic_type: "spotlight"
+
+    Returns an empty list when the project config is unavailable or has no
+    rules. Used by classify_topic_type for vertical isolation in retrieval.
+    """
+    try:
+        project_yaml = get_project_root() / "project.yaml"
+        if not project_yaml.exists():
+            return []
+        import yaml
+        cfg = yaml.safe_load(project_yaml.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return []
+    return ((cfg.get("rag") or {}).get("topic_type_rules") or [])
+
+
+def classify_topic_type(topic_name: str) -> str:
+    """Classify a topic into a content vertical so RAG can keep distinct
+    editorial verticals from contaminating each other.
+
+    Looks up project.yaml's `rag.topic_type_rules` (fnmatch patterns) first;
+    falls back to a built-in default that treats the `michelin_w_` prefix
+    as `spotlight`. Every other topic is `normal`. Override the rules in
+    project.yaml if you run more than one editorial vertical in the same
+    PostAll project.
+    """
+    import fnmatch
+    for rule in _load_project_topic_type_rules():
+        pattern = rule.get("pattern")
+        if pattern and fnmatch.fnmatch(topic_name, pattern):
+            return rule.get("topic_type") or "normal"
+    if topic_name.startswith("michelin_w_"):
+        return "spotlight"
+    return "normal"
+
+
 def _get_chroma_path() -> str:
     """Get ChromaDB storage path, derived from project data directory."""
     data_dir = get_project_root() / "data" / "chroma_db"
@@ -146,6 +189,7 @@ def index_topic(topic_name: str, collection=None):
 
         metadata = {
             "topic": topic_name,
+            "topic_type": classify_topic_type(topic_name),
             "platform": platform,
             "language": language,
             "score": score_info.get("score", 0.0),
