@@ -64,7 +64,7 @@ def classify_topic_type(topic_name: str) -> str:
         pattern = rule.get("pattern")
         if pattern and fnmatch.fnmatch(topic_name, pattern):
             return rule.get("topic_type") or "normal"
-    if topic_name.startswith("michelin_w_"):
+    if topic_name.startswith("michelin_"):
         return "spotlight"
     return "normal"
 
