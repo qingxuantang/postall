@@ -74,7 +74,7 @@ def retrieve_similar(
     # semantically-similar baseline posts. Legacy rows without a
     # topic_type field default to "normal" via $ne / equality matching.
     if current_topic_type == "normal":
-        where_conditions.append({"topic_type": {"$ne": "spotlight"}})
+        where_conditions.append({"topic_type": {"$nin": ["spotlight", "archived"]}})
     elif current_topic_type:
         where_conditions.append({"topic_type": current_topic_type})
 
