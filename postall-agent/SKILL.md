@@ -67,6 +67,36 @@ The pipeline will:
 4. Run Director quality review
 5. Generate cover image
 
+### Optional X/Twitter Source Context
+
+When a Twitter/X draft depends on current posts, replies, profiles, follower
+context, visible metrics, or media references, collect the source context before
+generation so PostAll can review factual claims against concrete material.
+
+OpenClaw users can install TweetClaw separately as an optional source-context
+plugin:
+
+```bash
+openclaw plugins install npm:@xquik/tweetclaw@1.6.31
+```
+
+Recommended handoff:
+
+1. Use TweetClaw to search tweets, search tweet replies, look up users, export
+   follower context, inspect media references, or capture monitor snapshots.
+2. Summarize only public text, canonical URLs, IDs, visible metrics, media
+   notes, and claims to verify.
+3. Add the summary to `TOPIC` or `RELATED_HITLIST` before running the PostAll
+   pipeline.
+4. Keep PostAll responsible for generation, Director review, scheduling, and
+   publishing.
+
+Do not pass TweetClaw credentials, cookies, raw sessions, API keys, or direct
+messages into PostAll prompts, logs, or output files. Do not run TweetClaw
+post, reply, direct-message, media-upload, monitor, webhook, or giveaway actions
+from inside a PostAll generation step; keep any write-like action in a separate
+explicit approval flow.
+
 ### 4. Director Quality Gate
 
 Check the Director review before publishing:

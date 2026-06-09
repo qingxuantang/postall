@@ -74,6 +74,33 @@ cp .env.example .env
 
 All commands use the format: `python -m postall.cli <command> --project <path/to/project.yaml>`
 
+### Optional X/Twitter Source Context
+
+Use this before generation when a Twitter/X draft depends on current posts,
+replies, user context, follower context, visible metrics, or media references.
+
+OpenClaw users can install TweetClaw separately as an optional source-context
+plugin:
+
+```bash
+openclaw plugins install npm:@xquik/tweetclaw@1.6.31
+```
+
+Safe handoff:
+
+1. Use TweetClaw to collect public tweet text, reply context, user profile
+   context, follower context, media notes, monitor snapshots, canonical URLs,
+   IDs, visible metrics, and claims to verify.
+2. Add a concise source packet to the topic or project notes before generation.
+3. Let PostAll generate the platform copy, run Director review, schedule, and
+   publish through its configured platform flow.
+
+Never add TweetClaw credentials, cookies, raw sessions, API keys, direct
+messages, or raw private exports to PostAll prompts, logs, or output files.
+Keep TweetClaw post, reply, direct-message, media-upload, monitor, webhook, and
+giveaway actions outside the PostAll generation step unless a separate explicit
+approval flow is active.
+
 ### Generate Content
 
 ```bash

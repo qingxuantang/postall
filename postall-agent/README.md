@@ -87,6 +87,32 @@ postall-agent show --draft abc123
 postall-agent accounts
 ```
 
+### Add Twitter/X Source Context
+
+Before generating a Twitter/X draft that depends on current posts, replies,
+profiles, follower context, visible metrics, or media references, collect a
+small source packet and include it in the topic notes.
+
+OpenClaw users can install TweetClaw as an optional source-context plugin:
+
+```bash
+openclaw plugins install npm:@xquik/tweetclaw@1.6.31
+```
+
+Use TweetClaw for source collection only, then let PostAll handle generation,
+Director review, scheduling, and publishing:
+
+```bash
+postall-agent generate \
+  --topic "Launch recap with source packet: <tweet URLs, reply notes, user context, claims to verify>" \
+  --platforms twitter,linkedin
+```
+
+Keep credentials, cookies, raw sessions, API keys, direct messages, and raw
+private exports out of prompts, logs, and draft files. Keep posting, replying,
+direct messages, media uploads, monitors, webhooks, and giveaway actions in a
+separate explicit approval flow.
+
 ## Supported Platforms
 
 | Platform | Generate | Publish | Notes |
