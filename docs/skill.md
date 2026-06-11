@@ -444,8 +444,9 @@ When using PostAll, follow these rules to avoid common issues:
 2. **NO AI clichés** - 避免「久久不能平静」「震撼了我」「颠覆认知」等空洞表达
 3. **NO fabricated data** - 只使用原始内容中的真实信息，不要编造统计数据
 4. **Image prompts in English** - AI 图像生成器无法渲染中文字符
-5. **Handle rate limits gracefully** - 遇到平台限制时等待后重试
-6. **WeChat: use *_content.md files** - Content parser 可能错误分割单篇文章，发布时永远使用完整的 `*_content.md` 文件（如 `wechat_content.md`），不要使用分割后的小文件（如 `01_monday_morning_article.md`）
+5. **Image prompts must reference a concrete object or scene, not the abstract thesis** - 配图必须基于一个具体物件或场景，不要用文章的抽象论点。 Models like Gemini produce generic geometric blocks or flowing color shapes when given abstract conceptual phrases like "components dissolving" or "intelligence augmentation." Read the post body, find one concrete thing it mentions — a vintage radio with a TV camera pointed at it, a presentation slide with a score badge, a stack of old books, a key, a bridge — and use that as the image hero element. The abstract thesis is conveyed through the literal scene, not through the prompt language. — 模型对抽象概念词（例如「组件正在消解」「AI 重塑工程师角色」）出图都是几何 blocks 或流动色块，没有视觉记忆点。必须从文章里找一个具体的物件或场景，用那个作为 image 主体。抽象论点通过具体场景让读者自己悟出来。
+6. **Handle rate limits gracefully** - 遇到平台限制时等待后重试
+7. **WeChat: use *_content.md files** - Content parser 可能错误分割单篇文章，发布时永远使用完整的 `*_content.md` 文件（如 `wechat_content.md`），不要使用分割后的小文件（如 `01_monday_morning_article.md`）
 
 ### Content File Structure
 
