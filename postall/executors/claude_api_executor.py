@@ -210,12 +210,30 @@ Include image generation prompts marked with ## Image Prompts section.
                 elif lang == "en" and platform_key == "twitter":
                     rag_platform = "twitter_en"
 
+                # Vertical isolation: classify the topic CURRENTLY being
+                # generated so the retriever can skip rows from other
+                # editorial verticals when this is a baseline (normal) post.
+                # `output_path` always lives under .../single_topics/<topic>/
+                try:
+                    from postall.rag.indexer import classify_topic_type
+                    parts = list(output_path.parts)
+                    if "single_topics" in parts:
+                        topic_idx = parts.index("single_topics") + 1
+                        current_topic_name = parts[topic_idx] if topic_idx < len(parts) else ""
+                    else:
+                        current_topic_name = output_path.name
+                    current_topic_type = classify_topic_type(current_topic_name) \
+                        if current_topic_name else "normal"
+                except Exception:
+                    current_topic_type = "normal"
+
                 rag_context = retrieve_similar(
                     query=prompt[:3000],
                     platform=rag_platform,
                     language=lang if lang != "auto" else None,
                     top_k=2,
                     min_score=8.0,
+                    current_topic_type=current_topic_type,
                 )
                 if rag_context:
                     system_message += f"""

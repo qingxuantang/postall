@@ -16,6 +16,7 @@ def retrieve_similar(
     language: Optional[str] = None,
     top_k: int = 3,
     min_score: float = 8.0,
+    current_topic_type: Optional[str] = None,
 ) -> str:
     """
     Retrieve similar high-scoring historical content.
@@ -26,6 +27,15 @@ def retrieve_similar(
         language: Filter by language (zh/en)
         top_k: Number of results to return
         min_score: Minimum director review score
+        current_topic_type: The topic_type of the topic CURRENTLY being
+            generated. Filtering is asymmetric and protects baseline content
+            from editorial-vertical contamination AND protects verticals
+            from baseline contamination:
+              - "normal"  — exclude rows tagged with any non-normal vertical
+              - other     — return ONLY rows of the same vertical
+              - None      — no vertical filter (legacy callers)
+            Legacy rows without a topic_type field pass through the
+            "normal" filter via $ne semantics.
 
     Returns:
         Formatted context string for injection into system prompt,
@@ -56,6 +66,17 @@ def retrieve_similar(
             where_conditions.append({"platform": platform_filter})
     if language:
         where_conditions.append({"language": language})
+    # Vertical isolation. Two-direction filtering:
+    #   - normal generation:  exclude any non-normal vertical (e.g. spotlight)
+    #   - non-normal generation: retrieve ONLY from the same vertical
+    # The second branch protects editorial verticals from inheriting style
+    # or trailing-field content (e.g. Image Prompt blocks) from
+    # semantically-similar baseline posts. Legacy rows without a
+    # topic_type field default to "normal" via $ne / equality matching.
+    if current_topic_type == "normal":
+        where_conditions.append({"topic_type": {"$nin": ["spotlight", "archived"]}})
+    elif current_topic_type:
+        where_conditions.append({"topic_type": current_topic_type})
 
     where = None
     if len(where_conditions) == 1:
