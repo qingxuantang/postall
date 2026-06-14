@@ -463,6 +463,78 @@ wechat-posts/
 
 ---
 
+## Prompt Design Tips
+
+Lessons that surface only after running the pipeline against real platforms. Two patterns to bake into your `run_topic_*.py` from day one.
+
+### Tip 1: Set explicit per-platform character caps — don't assume the model honors them
+
+The LLM is bad at counting characters. Telling it "stay under N chars" reduces overrun frequency but does NOT guarantee compliance. Always verify with `wc -c` after generation and trim manually if over.
+
+Per-account, per-platform caps to know:
+
+| Platform / tier | Max characters per single post |
+|---|---|
+| Twitter Free | 280 |
+| Twitter Premium Basic | 4,000 |
+| Twitter Premium+ | 25,000 |
+| LinkedIn personal feed | 3,000 (hard cap, no exceptions) |
+| LinkedIn org page | 3,000 |
+| WeChat article body | no hard cap (practical 5,000-10,000) |
+
+Encode the cap explicitly in your prompt's CRITICAL RULES section. Example:
+
+```python
+twitter_prompt_en = f"""...
+CRITICAL RULES:
+- HARD CAP: body text MUST stay under <N> characters. Count carefully.
+  If your draft is over, cut paragraphs until under.
+- Single tweet, NO thread structure
+...
+"""
+```
+
+After each generation, verify:
+
+```bash
+python3 -c "import re; t=open('x.md').read(); body=re.sub(r'\*\*([^*]+)\*\*', r'\1', t.split('### Image Prompt')[0]); print(len(body.strip()))"
+```
+
+If your draft is over, paragraph-level trims are usually enough. Prioritize keeping: the hook, the concrete examples, the closing CTA.
+
+### Tip 2: Don't let prompt blocks contradict each other
+
+If your prompt has multiple instruction blocks (e.g. `TOPIC` describes the content + `CTA_INSTRUCTION` describes the CTA + `HITLIST_INSTRUCTION` describes style constraints), check for direct contradictions BEFORE every run.
+
+Failure mode observed in production: when one block says "include link X" and another block says "don't include link X", the model resolves the conflict probabilistically — sometimes X appears, sometimes it doesn't. The result is unpredictable output across batch runs.
+
+Cheap mitigation: after editing any prompt block, grep across all blocks for the same concept:
+
+```bash
+# Example: check whether "include this link" and "don't include this link"
+# both appear in the same script
+grep -nE "tarai\.dev|don't include" run_topic_my_post.py
+```
+
+If you see both directions present, fix the conflict before running. The LLM cannot reliably honor mutually exclusive instructions.
+
+### Tip 3: Ban bridge phrases the LLM defaults to
+
+When generating posts that mention multiple numbers or categories (e.g. dual scores, before/after metrics), the LLM tends to produce filler bridge sentences like "those two numbers tell different stories" or "the gap between them is the point." These add nothing and feel generic.
+
+Add an explicit ban in your HITLIST 禁止 list:
+
+```text
+⚠️ 禁止：
+- 不要写"两个数字讲不同的故事" / "telling different stories" /
+  "gap between them" / similar abstract bridge phrasing —
+  go straight to the specific cause / specific finding / specific layer
+```
+
+This is in the same spirit as banning generic AI cliché phrases — the goal is to force the model into concrete, specific writing.
+
+---
+
 ## Troubleshooting
 
 ### Common Issues
