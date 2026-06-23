@@ -42,8 +42,14 @@ def clean_metadata(text: str, platform: str = 'generic') -> str:
     text = re.sub(r'^\*\*Content Pillar:\*\*.*$', '', text, flags=re.MULTILINE)
     # Remove **Thread (N tweets):** format (2026-03-02 fix)
     text = re.sub(r'^\*\*Thread\s*\(\d+\s*tweets?\):\*\*.*$', '', text, flags=re.MULTILINE | re.IGNORECASE)
-    # Remove ### Image Prompt and everything after it
-    text = re.split(r'###\s*Image Prompt', text, flags=re.IGNORECASE)[0]
+    # Remove `## Image Prompt` / `### Image Prompt` (or any heading level with
+    # 2+ hashes) and everything after it. The generator's prompt asks for
+    # `### Image Prompt` but models routinely downgrade to `## Image Prompt`,
+    # which previously slipped past this filter and got published verbatim
+    # (LinkedIn leak observed 2026-06-23). Match 2 or more hashes so the
+    # block is reliably stripped regardless of the heading depth the model
+    # emits. Also matches the plural `Image Prompts` form.
+    text = re.split(r'#{2,}\s*Image Prompts?', text, flags=re.IGNORECASE)[0]
     # Remove ### section headers
     text = re.sub(r'^###\s+.*$', '', text, flags=re.MULTILINE)
     # Remove --- horizontal rules
