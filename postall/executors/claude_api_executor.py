@@ -58,6 +58,39 @@ def _split_image_prompt(content: str) -> tuple:
     return content[: match.start()].rstrip() + "\n", match.group(1)
 
 
+def _split_post_header(content: str) -> tuple:
+    """Split off the leading `## Tweet - ...` / `## LinkedIn Post - ...` /
+    `## WeChat Article - ...` / etc. title block + the `**Posting Time:**`
+    metadata block so the shrinker never touches them.
+
+    The ContentParser downstream looks for these exact title patterns to
+    extract individual post files; if the shrinker drops them, the parser
+    finds 0 posts and the whole platform output silently fails. Split off
+    the header, shrink only the body, re-attach.
+
+    Returns: (header_block, body) where header_block is empty string if no
+    header pattern matched.
+    """
+    import re
+    # Title line, then any combination of blank lines and `**Key:** Value`
+    # metadata lines, optionally followed by a `---` separator and a blank
+    # line. The non-greedy block captures everything up to the first line of
+    # actual prose so the shrinker only operates on prose.
+    pattern = (
+        r"^(\s*##\s+(?:Tweet|LinkedIn Post|WeChat Article|Instagram Post|"
+        r"Thread|Pinterest Pin|Threads Post)\b[^\n]*\n"
+        r"(?:\s*\n|\s*\*\*[^\n]+\*\*[^\n]*\n)*"
+        r"(?:---\s*\n)?"
+        r"\s*\n?)"
+    )
+    match = re.match(pattern, content, flags=re.IGNORECASE)
+    if not match:
+        return "", content
+    header = match.group(1)
+    body = content[match.end():]
+    return header, body
+
+
 def shrink_content(
     content: str,
     platform_key: str,
@@ -102,7 +135,8 @@ def shrink_content(
         except Exception:
             return None
 
-    body, image_prompt_block = _split_image_prompt(content)
+    body_with_header, image_prompt_block = _split_image_prompt(content)
+    header_block, body = _split_post_header(body_with_header)
 
     lang_hint = ""
     if language == "zh":
@@ -158,10 +192,17 @@ Original post body to shrink:
             print(f"[Shrinker] attempt {attempt} API call failed (non-fatal): {exc}")
             return last_shrunk  # may be None if first attempt failed
 
-        # Re-attach the image prompt block before checking length. Length is
-        # measured against the publisher view, which strips the image prompt
-        # anyway — but reconstructing the full file is what the caller saves.
-        full = shrunk_body.rstrip() + ("\n" + image_prompt_block if image_prompt_block else "")
+        # Re-attach the title header (verbatim) and image prompt block
+        # (verbatim) around the shrunk body. Both are downstream contracts:
+        # ContentParser looks for the title to extract individual post
+        # files; the image generator reads the Image Prompt block verbatim.
+        # Length is measured against the publisher view which strips both —
+        # but reconstructing the full file is what the caller saves.
+        full = (
+            (header_block if header_block else "")
+            + shrunk_body.rstrip()
+            + ("\n" + image_prompt_block if image_prompt_block else "")
+        )
         last_shrunk = full
 
         # If we're inside the hard cap, ship it.
