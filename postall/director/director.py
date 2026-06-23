@@ -35,6 +35,9 @@ from postall.config import (
 # NEW: James Workflow integrations
 from postall.theory_framework.viral_scorer import VIRALScorer
 from postall.utils.humanizer import ChineseHumanizer
+# Hard length gate — see postall.length_guard for why this overrides
+# score-based decisions.
+from postall.length_guard import length_violation
 
 
 class ContentDecision(str, Enum):
@@ -390,6 +393,34 @@ class ContentDirector:
 
         # Make decision
         decision = self._make_decision(composite_score, criteria, platform)
+        revision_notes = review_response.get("revision_notes")
+
+        # Length hard gate. The AI scorer historically treats overage as a
+        # soft -0.2 platform_fit penalty (see _rule_based_review), which can
+        # still yield approve_with_notes on otherwise strong content. That
+        # masks a publish-time failure since publishers refuse to silently
+        # truncate. So we override to REQUEST_REVISION whenever the
+        # publishable body still exceeds the platform's hard cap, and pin the
+        # specific overage into revision_notes so the operator sees exactly
+        # how many chars to trim. See postall/length_guard.py.
+        violation = length_violation(content, platform)
+        if violation is not None:
+            note = (
+                f"Content body is {violation['actual']} chars, exceeds "
+                f"{violation['platform']} hard cap of {violation['limit']} by "
+                f"{violation['over_by']} chars. Trim before publish — the "
+                "publisher will refuse to silently truncate."
+            )
+            if revision_notes:
+                revision_notes = f"{note}\n\n{revision_notes}"
+            else:
+                revision_notes = note
+            if decision not in (
+                ContentDecision.REQUEST_REVISION,
+                ContentDecision.REJECT,
+                ContentDecision.ESCALATE_TO_HUMAN,
+            ):
+                decision = ContentDecision.REQUEST_REVISION
 
         return ReviewResult(
             post_path=str(post_path),
@@ -399,7 +430,7 @@ class ContentDirector:
             criteria_scores=criteria,
             feedback=review_response.get("feedback", ""),
             issues=issues,
-            revision_notes=review_response.get("revision_notes"),
+            revision_notes=revision_notes,
             human_question=review_response.get("human_question")
         )
 

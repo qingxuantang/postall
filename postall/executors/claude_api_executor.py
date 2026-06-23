@@ -10,10 +10,15 @@ Enhanced with James Writing Workflow's Four-Dimensional Weapons Arsenal:
 """
 
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from datetime import datetime
 
 from postall.config import ANTHROPIC_API_KEY, get_brand_name, get_brand_style
+from postall.length_guard import (
+    get_publish_limit,
+    get_target_length,
+    length_violation,
+)
 
 # NEW: James Workflow integrations
 try:
@@ -32,6 +37,144 @@ try:
     RAG_AVAILABLE = True
 except ImportError:
     RAG_AVAILABLE = False
+
+
+def _split_image_prompt(content: str) -> tuple:
+    """Split content at `### Image Prompt` so the shrinker never touches it.
+
+    Image prompts are downstream contracts — the image generator reads them
+    verbatim. Letting the shrinker rewrite them risks dropping the block
+    entirely (the LLM treats it as fluff) or paraphrasing it in ways that
+    break image generation. The shrinker only sees the body; the image
+    prompt is re-attached verbatim after.
+
+    Returns: (body, image_prompt_section) where image_prompt_section may
+    be an empty string if there was no Image Prompt block.
+    """
+    import re
+    match = re.search(r'(\n#+\s*Image Prompt[\s\S]*$)', content, flags=re.IGNORECASE)
+    if not match:
+        return content, ""
+    return content[: match.start()].rstrip() + "\n", match.group(1)
+
+
+def shrink_content(
+    content: str,
+    platform_key: str,
+    target_chars: int,
+    hard_cap: int,
+    language: str = "",
+    client: Optional[Any] = None,
+    max_attempts: int = 2,
+) -> Optional[str]:
+    """Ask the LLM to compress an over-length post to fit a target body length.
+
+    The shrinker is intentionally narrow:
+      * The `### Image Prompt` block is split off before the LLM call and
+        re-attached verbatim afterwards. The LLM only sees the publishable
+        body — this prevents it from "tidying away" the image prompt and
+        breaking downstream image generation.
+      * Anything inside ASCII straight quotes (`"…"`) and curly quotes
+        (`"…"`) is treated as a source-of-truth quote that must survive
+        the shrink. Generic prose can be tightened; attributed quotes
+        cannot be paraphrased away.
+      * It targets `target_chars` of *publishable body* (matching what the
+        publisher will count) and hard-caps at `hard_cap`.
+      * `max_attempts` retries with progressively tighter targets if the
+        first shrink lands close-but-still-over. LLMs are imprecise about
+        exact lengths; two attempts usually clear a long post.
+
+    Returns the shrunk content on success (image prompt re-attached), or
+    None if every attempt fails. The caller decides whether to keep, retry,
+    or fall back to the original.
+    """
+    if not ANTHROPIC_API_KEY:
+        return None
+
+    try:
+        import anthropic  # noqa: WPS433 — lazy import keeps the dependency optional
+    except ImportError:
+        return None
+
+    if client is None:
+        try:
+            client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        except Exception:
+            return None
+
+    body, image_prompt_block = _split_image_prompt(content)
+
+    lang_hint = ""
+    if language == "zh":
+        lang_hint = (
+            "OUTPUT MUST stay in Chinese. Keep proper-noun English terms "
+            "in their original form."
+        )
+    elif language == "en":
+        lang_hint = "OUTPUT MUST stay in English."
+
+    last_shrunk = None
+    current_target = target_chars
+    for attempt in range(1, max_attempts + 1):
+        shrink_prompt = f"""You are a precision content editor. Tighten the post below so its
+publishable body fits under the platform character cap. Do not paraphrase quoted
+material; only tighten prose around it.
+
+Hard rules:
+1. The publishable body MUST be ≤ {current_target} characters and MUST NOT
+   exceed {hard_cap} characters under any circumstance. This is attempt
+   {attempt} of {max_attempts}.
+2. Keep every direct quote — anything inside straight quotes "…" or curly
+   quotes "…" — EXACTLY as written. Do not abbreviate quotes, do not
+   paraphrase them. Tighten only the prose around them.
+3. Keep the structural shell intact: title header at the top (if present),
+   section dividers (`---`) between major sections, and paragraph structure.
+4. Keep proper nouns, statistics, percentages, dates, and URLs unchanged.
+5. Tighten by removing redundancy, filler words, and repeated framing. If a
+   sentence appears twice (in the body and in a closing recap), drop the
+   recap, not the body.
+6. Do NOT add new content or new claims.
+7. Do NOT add any explanation, preamble, or "here is the shortened version"
+   text. Output ONLY the rewritten post body.
+{lang_hint}
+
+Platform: {platform_key}
+Target body length: {current_target} characters
+Hard cap (must not exceed): {hard_cap} characters
+
+Original post body to shrink:
+
+{body}
+"""
+
+        try:
+            message = client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=8000,
+                messages=[{"role": "user", "content": shrink_prompt}],
+            )
+            shrunk_body = message.content[0].text
+        except Exception as exc:
+            print(f"[Shrinker] attempt {attempt} API call failed (non-fatal): {exc}")
+            return last_shrunk  # may be None if first attempt failed
+
+        # Re-attach the image prompt block before checking length. Length is
+        # measured against the publisher view, which strips the image prompt
+        # anyway — but reconstructing the full file is what the caller saves.
+        full = shrunk_body.rstrip() + ("\n" + image_prompt_block if image_prompt_block else "")
+        last_shrunk = full
+
+        # If we're inside the hard cap, ship it.
+        v = length_violation(full, platform_key)
+        if v is None:
+            return full
+
+        # Still over: tighten the target by the leftover overshoot and retry.
+        # Aim ~80% of the leftover to give the LLM headroom on the next pass.
+        leftover = v["over_by"]
+        current_target = max(int(current_target - leftover * 1.2), 200)
+
+    return last_shrunk
 
 
 def execute_with_claude_api(prompt: str, output_path: Path, platform_key: str, language: str = "") -> Dict[str, Any]:
@@ -276,6 +419,51 @@ or reuse their specific angles. Create original content with a fresh perspective
 
                 # Log humanization results
                 print(f"[Humanizer] AI pattern score: {ai_score_before:.2f} → {ai_score_after:.2f}")
+
+        # Length guard — see postall.length_guard for the rationale. Prompt-only
+        # "≤ N chars" instructions are unreliable, especially when the prompt
+        # also pins down a long must-include list. If the post-generation body
+        # is over the platform's hard cap, fire one shrink retry against the
+        # LLM. The shrinker preserves the markdown structure (so image prompts
+        # at the end survive), and is best-effort — if shrinking fails or
+        # still doesn't fit, the director will catch the overflow downstream
+        # and downgrade the decision to REQUEST_REVISION rather than silently
+        # publishing an over-length post.
+        violation = length_violation(content, platform_key)
+        if violation is not None:
+            print(
+                f"[LengthGuard] Generated {violation['actual']} chars, "
+                f"exceeds {platform_key} cap of {violation['limit']} by "
+                f"{violation['over_by']}. Calling shrinker..."
+            )
+            shrunk = shrink_content(
+                content=content,
+                platform_key=platform_key,
+                target_chars=get_target_length(platform_key),
+                hard_cap=violation['limit'],
+                language=language,
+                client=client,
+            )
+            if shrunk is not None:
+                new_violation = length_violation(shrunk, platform_key)
+                if new_violation is None:
+                    print(
+                        f"[LengthGuard] Shrink succeeded — body now within "
+                        f"{platform_key} cap of {violation['limit']}."
+                    )
+                    content = shrunk
+                else:
+                    print(
+                        f"[LengthGuard] Shrink reduced to {new_violation['actual']} "
+                        f"chars but still over by {new_violation['over_by']}. "
+                        "Keeping shrunk version; director will flag."
+                    )
+                    content = shrunk
+            else:
+                print(
+                    "[LengthGuard] Shrink call failed; keeping original. "
+                    "Director will downgrade decision."
+                )
 
         # Save aggregate file (including image prompts — DO NOT strip them)
         content_file = output_path / f"{platform_key}_content.md"
