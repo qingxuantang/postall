@@ -1,13 +1,28 @@
-# PostAll 📮
+<p align="center">
+  <img src="./docs/assets/hippo.png" alt="PostAll" width="180" height="180">
+</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+<h1 align="center">PostAll</h1>
 
-**[English](./README.md) | [中文](#postall-)**
+<p align="center">
+  <b>能给自己打分的内容生成流水线。</b><br>
+  <i>Built by builders for all.</i>
+</p>
 
-> AI 驱动的多平台社交媒体内容生成与自动发布工具
+<p align="center">
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.9+-blue.svg" alt="Python 3.9+"></a>
+</p>
 
-PostAll 是一个完整的内容自动化流水线，它能根据你的品牌指南和内容策略生成平台优化的帖子，通过 AI 质量控制进行审核，并自动发布到多个社交平台。
+<p align="center">
+  <a href="https://postall.live/">官网</a> ·
+  <a href="https://postall.live/evidence/">生产实时记录</a> ·
+  <a href="./README.md">English</a>
+</p>
+
+---
+
+PostAll 是一个完整的内容自动化流水线：从你的品牌指南和选题策略出发，多模型生成平台化文案，AI Director 用 8 个维度给每一稿打分，达不到 threshold 的退回重写，只有过关的才发到 Twitter / LinkedIn / WeChat 等平台。
 
 ## 🎯 工作流程
 

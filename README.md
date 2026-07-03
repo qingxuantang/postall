@@ -1,13 +1,28 @@
-# PostAll 📮
+<p align="center">
+  <img src="./docs/assets/hippo.png" alt="PostAll" width="180" height="180">
+</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+<h1 align="center">PostAll</h1>
 
-**[English](#postall-) | [中文](./README_CN.md)**
+<p align="center">
+  <b>Content generation that grades itself before shipping.</b><br>
+  <i>Built by builders for all.</i>
+</p>
 
-> AI-powered multi-platform social media content generation and publishing automation.
+<p align="center">
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.9+-blue.svg" alt="Python 3.9+"></a>
+</p>
 
-PostAll is a complete content automation pipeline that generates platform-optimized posts from your brand guidelines and content strategy, reviews them with AI quality control, and publishes across multiple social platforms.
+<p align="center">
+  <a href="https://postall.live/">Website</a> ·
+  <a href="https://postall.live/evidence/">Live Evidence</a> ·
+  <a href="./README_CN.md">中文</a>
+</p>
+
+---
+
+PostAll is a complete content automation pipeline that generates platform-optimized posts from your brand guidelines and content strategy, grades them with an AI Director across 8 quality dimensions, and publishes only the ones that clear threshold across Twitter, LinkedIn, WeChat, and more.
 
 ## 📺 Demo
 
