@@ -54,6 +54,29 @@ KNOWN_AI_TOOLS = {
     "supermaven", "blackbox ai", "kodezi", "pieces", "phind"
 }
 
+# ── Agent Pulse: optional evidence-backed AI-industry event feed ──
+# Agent Pulse (https://github.com/barretlee/agent-pulse, MIT-licensed code)
+# publishes a daily-refreshed static feed of scored, evidence-backed AI-industry
+# events. We consume the public allowlisted feed (titles, summaries, scores,
+# canonical evidence links, and Agent Pulse's original synthesis) purely to
+# inform generation prompts — we do not redistribute its content verbatim.
+# The feed's DATA is NOT MIT-licensed; see docs/LEGAL.md in that repo. Attribution
+# is preserved in the injected prompt block. Disable with env AGENT_PULSE_ENABLED=0.
+import os
+
+AGENT_PULSE_ENABLED = os.getenv("AGENT_PULSE_ENABLED", "1") not in ("0", "false", "no")
+AGENT_PULSE_URL = os.getenv(
+    "AGENT_PULSE_URL",
+    "https://barretlee.github.io/agent-pulse/data/timeline.json",
+)
+AGENT_PULSE_CACHE_FILE = DATA_DIR / "agent_pulse_cache.json"
+AGENT_PULSE_CACHE_TTL_HOURS = int(os.getenv("AGENT_PULSE_CACHE_TTL_HOURS", "24"))
+AGENT_PULSE_RECENT_DAYS = int(os.getenv("AGENT_PULSE_RECENT_DAYS", "30"))
+AGENT_PULSE_MIN_IMPACT = int(os.getenv("AGENT_PULSE_MIN_IMPACT", "80"))
+AGENT_PULSE_MIN_CONFIDENCE = int(os.getenv("AGENT_PULSE_MIN_CONFIDENCE", "70"))
+AGENT_PULSE_TOP_K = int(os.getenv("AGENT_PULSE_TOP_K", "8"))
+AGENT_PULSE_ATTRIBUTION = "Agent Pulse (barretlee.github.io/agent-pulse)"
+
 
 def load_manual_context() -> Dict:
     """Load manual context from JSON file."""
@@ -116,6 +139,101 @@ def extract_ai_tools_from_headlines(headlines: List[str]) -> List[str]:
                 # Capitalize properly
                 found_tools.append(tool.title())
     return list(set(found_tools))
+
+
+def _parse_iso(dt: Optional[str]) -> Optional[datetime]:
+    """Parse an ISO-8601 timestamp (tolerant of trailing Z)."""
+    if not dt:
+        return None
+    try:
+        return datetime.fromisoformat(dt.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def fetch_agent_pulse_events(force: bool = False) -> List[Dict]:
+    """
+    Fetch and filter recent high-signal AI-industry events from Agent Pulse.
+
+    Consumes the public daily-refreshed feed, caches it locally for
+    AGENT_PULSE_CACHE_TTL_HOURS, and returns the top-K most impactful recent
+    events. Degrades to [] on any failure or when disabled — never raises, so
+    it can never block generation.
+
+    Returns a list of dicts: {title, summary, category, company, evidence_url,
+    impact, published_at}.
+    """
+    if not AGENT_PULSE_ENABLED:
+        return []
+
+    payload = None
+
+    # 1) Try fresh-enough cache
+    if not force and AGENT_PULSE_CACHE_FILE.exists():
+        try:
+            cached = json.loads(AGENT_PULSE_CACHE_FILE.read_text())
+            fetched_at = _parse_iso(cached.get("cached_at"))
+            if fetched_at:
+                age_h = (datetime.now(timezone.utc) - fetched_at).total_seconds() / 3600
+                if age_h < AGENT_PULSE_CACHE_TTL_HOURS:
+                    payload = cached.get("payload")
+        except Exception:
+            payload = None
+
+    # 2) Cache miss/stale -> fetch live, refresh cache
+    if payload is None:
+        raw = fetch_url(AGENT_PULSE_URL, timeout=15)
+        if not raw:
+            # Fall back to a stale cache if we have one, else give up quietly
+            if AGENT_PULSE_CACHE_FILE.exists():
+                try:
+                    payload = json.loads(AGENT_PULSE_CACHE_FILE.read_text()).get("payload")
+                except Exception:
+                    return []
+            else:
+                return []
+        else:
+            try:
+                payload = json.loads(raw)
+                DATA_DIR.mkdir(parents=True, exist_ok=True)
+                AGENT_PULSE_CACHE_FILE.write_text(json.dumps({
+                    "cached_at": datetime.now(timezone.utc).isoformat(),
+                    "source": AGENT_PULSE_URL,
+                    "payload": payload,
+                }, ensure_ascii=False))
+            except Exception:
+                return []
+
+    if not payload:
+        return []
+
+    events = payload.get("events") or []
+    # Use the feed's own generatedAt as "now" so filtering is deterministic
+    ref_now = _parse_iso(payload.get("generatedAt")) or datetime.now(timezone.utc)
+
+    scored = []
+    for e in events:
+        pub = _parse_iso(e.get("publishedAt") or e.get("happenedAt"))
+        if not pub:
+            continue
+        age_days = (ref_now - pub).days
+        impact = e.get("impactScore", 0) or 0
+        conf = e.get("confidenceScore", 0) or 0
+        if age_days <= AGENT_PULSE_RECENT_DAYS and impact >= AGENT_PULSE_MIN_IMPACT \
+                and conf >= AGENT_PULSE_MIN_CONFIDENCE:
+            evidence = e.get("evidence") or []
+            scored.append((impact, e.get("heatScore", 0) or 0, {
+                "title": e.get("title", "").strip(),
+                "summary": (e.get("summary") or e.get("factSummary") or "").strip(),
+                "category": e.get("category", ""),
+                "company": e.get("company", ""),
+                "evidence_url": evidence[0]["url"] if evidence else "",
+                "impact": impact,
+                "published_at": (e.get("publishedAt") or e.get("happenedAt") or "")[:10],
+            }))
+
+    scored.sort(key=lambda x: (-x[0], -x[1]))
+    return [item[2] for item in scored[:AGENT_PULSE_TOP_K]]
 
 
 def smart_update_context() -> Dict:
@@ -234,20 +352,26 @@ def refresh_timeliness_context() -> Dict:
 
 def get_timeliness_context() -> Dict:
     """Get timeliness context for prompt injection."""
+    # Optional evidence-backed industry events (never raises, [] if unavailable)
+    industry_events = fetch_agent_pulse_events()
+
     # Try fetched context first
     if FETCHED_CONTEXT_FILE.exists():
         try:
             context = json.loads(FETCHED_CONTEXT_FILE.read_text())
-            return context.get("summary", {})
+            summary = context.get("summary", {})
+            summary["industry_events"] = industry_events
+            return summary
         except:
             pass
-    
+
     # Fallback to manual context
     manual = load_manual_context()
     return {
         "current_hot_ai_tools": manual.get("current_hot_tools", []),
         "current_trends": manual.get("current_trends_2026", []),
         "recent_ai_headlines": [],
+        "industry_events": industry_events,
         "last_updated": manual.get("last_updated"),
     }
 
@@ -275,12 +399,27 @@ def get_context_for_prompt() -> str:
         lines.append("近期 AI 相关新闻：")
         for headline in ctx.get("recent_ai_headlines", [])[:3]:
             lines.append(f"  - {headline}")
-    
+
+    industry_events = ctx.get("industry_events", [])
+    if industry_events:
+        lines.append("")
+        lines.append("近期 AI 行业重大事件（evidence-backed，按影响力排序）：")
+        for e in industry_events:
+            head = e.get("title", "")
+            meta = " · ".join(x for x in [e.get("company", ""), e.get("published_at", "")] if x)
+            lines.append(f"  - {head}" + (f" [{meta}]" if meta else ""))
+            if e.get("summary"):
+                lines.append(f"    {e['summary']}")
+            if e.get("evidence_url"):
+                lines.append(f"    来源: {e['evidence_url']}")
+        lines.append("")
+        lines.append(f"（行业事件来源: {AGENT_PULSE_ATTRIBUTION}）")
+
     lines.append("")
     lines.append(f"（数据更新于: {ctx.get('last_updated', 'unknown')}）")
     lines.append("")
     lines.append("⚠️ 提及 AI 工具时，请参考上述清单，避免将旧工具描述为\"最新\"或\"前沿\"。")
-    
+
     return "\n".join(lines)
 
 
@@ -325,6 +464,11 @@ if __name__ == "__main__":
         
         elif cmd == "prompt":
             print(get_context_for_prompt())
+
+        elif cmd == "agent-pulse":
+            events = fetch_agent_pulse_events(force="--force" in sys.argv)
+            print(f"Fetched {len(events)} events from {AGENT_PULSE_ATTRIBUTION}\n")
+            print(json.dumps(events, indent=2, ensure_ascii=False))
         
         elif cmd == "show":
             ctx = load_manual_context()
