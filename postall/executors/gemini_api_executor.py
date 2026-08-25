@@ -66,7 +66,7 @@ def execute_with_gemini_api(prompt: str, output_path: Path, platform_key: str, l
         genai.configure(api_key=GEMINI_API_KEY)
 
         # Use Gemini 2.5 Pro for text generation
-        model = genai.GenerativeModel('gemini-2.5-pro')
+        model = genai.GenerativeModel('gemini-flash-latest')
 
         # Build full prompt with instructions using dynamic brand info
         brand_name = get_brand_name()
@@ -116,7 +116,7 @@ TASK:
             "success": True,
             "output": content,
             "file_path": str(content_file),
-            "model": "gemini-2.5-pro"
+            "model": "gemini-flash-latest"
         }
 
     except ImportError:
@@ -151,7 +151,7 @@ def execute_review_with_gemini(prompt: str) -> str:
         import google.generativeai as genai
 
         genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-2.5-pro')
+        model = genai.GenerativeModel('gemini-flash-latest')
 
         response = _call_gemini_with_retry(model, prompt)
         return response.text
