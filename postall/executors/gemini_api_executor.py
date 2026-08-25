@@ -65,7 +65,7 @@ def execute_with_gemini_api(prompt: str, output_path: Path, platform_key: str, l
         # Configure Gemini
         genai.configure(api_key=GEMINI_API_KEY)
 
-        # Use Gemini 2.5 Pro for text generation
+        # Text generation model. Deliberately an alias, not a pinned version.
         model = genai.GenerativeModel('gemini-flash-latest')
 
         # Build full prompt with instructions using dynamic brand info
