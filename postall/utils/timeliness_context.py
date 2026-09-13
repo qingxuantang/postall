@@ -71,7 +71,11 @@ AGENT_PULSE_URL = os.getenv(
 )
 AGENT_PULSE_CACHE_FILE = DATA_DIR / "agent_pulse_cache.json"
 AGENT_PULSE_CACHE_TTL_HOURS = int(os.getenv("AGENT_PULSE_CACHE_TTL_HOURS", "24"))
-AGENT_PULSE_RECENT_DAYS = int(os.getenv("AGENT_PULSE_RECENT_DAYS", "30"))
+# Default widened 30->90 on 2026-09-09: the feed publishes high-impact events
+# with a multi-week lag while filling recent days with low-signal release-tag
+# noise; a 30-day window intersected with impact>=80 yielded 0 events. See the
+# ref_now comment in fetch_agent_pulse_events for the full root cause.
+AGENT_PULSE_RECENT_DAYS = int(os.getenv("AGENT_PULSE_RECENT_DAYS", "90"))
 AGENT_PULSE_MIN_IMPACT = int(os.getenv("AGENT_PULSE_MIN_IMPACT", "80"))
 AGENT_PULSE_MIN_CONFIDENCE = int(os.getenv("AGENT_PULSE_MIN_CONFIDENCE", "70"))
 AGENT_PULSE_TOP_K = int(os.getenv("AGENT_PULSE_TOP_K", "8"))
@@ -208,8 +212,29 @@ def fetch_agent_pulse_events(force: bool = False) -> List[Dict]:
         return []
 
     events = payload.get("events") or []
-    # Use the feed's own generatedAt as "now" so filtering is deterministic
-    ref_now = _parse_iso(payload.get("generatedAt")) or datetime.now(timezone.utc)
+    # Anchor the recency window to the FRESHEST event actually present in the
+    # feed (fallback: generatedAt, then now). This decouples recency from
+    # generatedAt, which can drift from the real event dates.
+    #
+    # Root cause of the silent "0 events injected" bug (diagnosed 2026-09-09):
+    # Agent Pulse's RECENT entries are low-signal noise (release tags / build
+    # numbers like "v5.16.0", impactScore ~55), while the genuine high-impact
+    # events (GPT-5.6 impact 98, Grok 4.5 impact 97, GLM-5.2 impact 97) cluster
+    # 6-8 weeks back. With impact>=80 AND a 30-day window, the two sets are
+    # mutually exclusive -> intersection empty -> 0 events reach the prompt,
+    # silently. Fix: keep the impact bar high (so the version-bump noise stays
+    # OUT) but widen the window (AGENT_PULSE_RECENT_DAYS default 30->90) so the
+    # high-impact events, which the feed publishes with a lag, get through.
+    # top-K by impact means noise never makes the cut even inside the window.
+    # NOTE: this surfaces the freshest *high-impact* cluster the feed has; it
+    # does NOT make an upstream-stale feed current (that is item 3.2 / the
+    # manual-seed refresh, tracked separately).
+    _event_dates = [
+        d for d in (_parse_iso(e.get("publishedAt") or e.get("happenedAt")) for e in events)
+        if d
+    ]
+    ref_now = max(_event_dates) if _event_dates else \
+        (_parse_iso(payload.get("generatedAt")) or datetime.now(timezone.utc))
 
     scored = []
     for e in events:
