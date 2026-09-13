@@ -653,7 +653,7 @@ Output format — write ONLY the improved post content in markdown:
                 from postall.executors.gemini_api_executor import _call_gemini_with_retry
 
                 genai.configure(api_key=GEMINI_API_KEY)
-                model = genai.GenerativeModel("gemini-2.0-flash")
+                model = genai.GenerativeModel("gemini-3.6-flash")
 
                 response = await asyncio.to_thread(
                     lambda: _call_gemini_with_retry(model, prompt)
