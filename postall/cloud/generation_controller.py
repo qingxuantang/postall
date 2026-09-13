@@ -317,6 +317,8 @@ class GenerationController:
                     status['week_folder'], approved_posts
                 )
                 result['images_generated'] = img_result.get('generated', 0)
+                result['images_failed'] = img_result.get('failed', 0)
+                result['images_batch_all_failed'] = img_result.get('batch_all_failed', False)
                 if img_result.get('error'):
                     result['errors'].append(f"Image generation: {img_result['error']}")
             except Exception as e:
@@ -758,6 +760,11 @@ Output format — write ONLY the improved post content in markdown:
             result['success'] = total_generated > 0 or total_failed == 0
             result['generated'] = total_generated
             result['failed'] = total_failed
+            # Batch-wide failure flag for downstream alerting: if images were
+            # attempted (failed > 0) but none succeeded, surface it so the
+            # daemon can fail-loud before the batch silently ships text-only,
+            # instead of continuing to schedule + auto-publish image-less posts.
+            result['batch_all_failed'] = (total_generated == 0 and total_failed > 0)
 
         except ImportError as e:
             result['error'] = f'Image executor not available: {e}'
