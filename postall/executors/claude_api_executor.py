@@ -183,7 +183,7 @@ Original post body to shrink:
 
         try:
             message = client.messages.create(
-                model="claude-sonnet-4-20250514",
+                model="claude-sonnet-4-6",
                 max_tokens=8000,
                 messages=[{"role": "user", "content": shrink_prompt}],
             )
@@ -437,7 +437,7 @@ or reuse their specific angles. Create original content with a fresh perspective
 
         # Call Claude API
         message = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-6",
             max_tokens=8000,
             system=system_message,
             messages=[
